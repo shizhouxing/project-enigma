@@ -280,7 +280,7 @@ const AuthPage = () => {
                 <p className="text-center text-sm text-zinc-400">
                   By clicking continue, you agree to our{" "}
                   <a
-                    href="/term_of_service"
+                    href="/terms_of_service"
                     className="underline underline-offset-4 hover:text-white"
                   >
                     Terms of Service
