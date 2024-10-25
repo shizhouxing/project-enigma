@@ -31,8 +31,9 @@ Before you begin, ensure you have the following installed:
    MONGODB_DB_NAME=your_database_name
    MONGODB_USER=your_username
    MONGODB_PASSWORD=your_password
-   MONGODB_HOST=your_cluster_host
+   MONGODB_HOST=...mongodb.net
    MONGODB_PROTOCOL=mongodb+srv
+   # <MONGODB_PROTOCOL>://<MONGODB_USER>:<MONGODB_PASSWORD>@<MONGODB_HOST>/?retryWrites=true&w=majority&appName=<MONGODB_DB_NAME>
    ```
 
 3. Update other environment variables as needed:
