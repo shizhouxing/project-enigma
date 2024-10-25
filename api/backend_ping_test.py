@@ -21,5 +21,6 @@ async def db_ping_server():
     except Exception as e:
         raise e
 
-
-asyncio.run(db_ping_server())
+if __name__ == "__main__":
+    # health check for testing if the server is alive
+    asyncio.run(db_ping_server())

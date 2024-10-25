@@ -1,4 +1,4 @@
-from urllib.parse import urljoin
+"""Entrance file """
 
 from fastapi import FastAPI
 from fastapi.routing import APIRoute

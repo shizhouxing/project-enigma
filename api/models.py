@@ -1,3 +1,33 @@
+"""
+Pydantic Data Models Module
+==========================
+
+This module defines the Pydantic models used throughout the application for data validation,
+serialization, and documentation. These models serve as the core data structures and
+ensure type safety and validation across the API.
+
+The models are organized into several categories:
+1. Message Models - For API responses
+2. Token Models - For authentication and JWT handling
+3. User Models - Various user-related models for different contexts
+
+Key Features:
+- Automatic validation of input data
+- JSON Schema generation for API documentation
+- MongoDB ObjectId handling
+- Secure password handling
+- Custom field validators
+
+Usage:
+    from api.models import User, UserRegister, UserPublic, Token
+    
+    # Validate user registration data
+    user_data = UserRegister(username="john_doe", password="secure123")
+    
+    # Convert internal user to public response
+    public_user = UserPublic.from_user(user)
+"""
+
 from datetime import datetime, timedelta
 from typing import Optional, Any
 from pydantic import BaseModel, Field, ConfigDict, field_validator
@@ -34,7 +64,7 @@ class UserBase(BaseModel):
     def username_alphanumeric(cls, v: str) -> str:
         if not v.replace("_", "").isalnum():
             raise ValueError('Username must be alphanumeric, underscores allowed')
-        return v.lower()
+        return v
 
 class UserRegister(UserBase):
     """User registration request model"""
@@ -102,3 +132,5 @@ class UserPublic(BaseModel):
             _id=str(user.id),
             username=user.username
         )
+    
+# NOTE if you need more Models then continue here

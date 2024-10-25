@@ -12,7 +12,6 @@ from pydantic import (
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Get the project root directory
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 
 def parse_cors(v: Any) -> list[str] | str:

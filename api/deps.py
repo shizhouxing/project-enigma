@@ -28,7 +28,7 @@ def get_db() -> Generator[AsyncIOMotorDatabase, None, None]:
     finally:
         client.close()
 
-
+# Annotation type that used in context we desire the read/write access to the db
 Session = Annotated[AsyncIOMotorDatabase, Depends(get_db)]
 
 
@@ -99,4 +99,5 @@ async def clear_user_token(session: Session, user_id: ObjectId) -> None:
         # Log error but don't raise - this is a cleanup operation
         pass
 
+# Annotation type that used in context we desire the user information
 CurrentUser = Annotated[User, Depends(get_current_user)]

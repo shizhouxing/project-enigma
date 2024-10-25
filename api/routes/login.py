@@ -1,3 +1,20 @@
+"""
+Authentication Routes Module
+===========================
+
+This module handles all authentication-related endpoints including login and
+token validation. It implements OAuth2 password flow with JWT tokens for
+secure authentication.
+
+Routes:
+- POST /login/access-token: Login endpoint returning JWT token
+- POST /login/test-token: Endpoint to validate JWT token
+
+Dependencies:
+- FastAPI OAuth2 for authentication
+- JWT for token generation
+- MongoDB for user storage
+"""
 from datetime import timedelta
 from typing import Annotated, Any
 
@@ -5,7 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from api import crud
-from api.deps import CurrentUser, get_db, oauth2_scheme
+from api.deps import CurrentUser, get_db
 from api.core import security
 from api.core.config import settings
 from api.models import Token, UserPublic, User

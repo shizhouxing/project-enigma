@@ -1,3 +1,22 @@
+"""
+User Management Routes Module
+============================
+
+This module handles all user-related API endpoints including user registration,
+retrieval, and logout functionality. It provides the core user management
+functionality for the application.
+
+Routes:
+- POST /signup: User registration
+- GET /{user_id}: Retrieve user details
+- POST /logout: User logout
+
+Dependencies:
+- FastAPI for route handling
+- MongoDB for user storage
+- Pydantic for data validation
+"""
+
 from typing import Any
 
 from bson import ObjectId

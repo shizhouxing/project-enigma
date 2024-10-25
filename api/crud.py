@@ -1,11 +1,35 @@
-import uuid
-from typing import Any, Optional
+"""
+Database CRUD Operations Helper Module
+====================================
+
+This module provides helper functions for database CRUD (Create, Read, Update, Delete) operations,
+primarily used by route handlers. It serves as a layer of abstraction between the API routes
+and direct database operations, promoting code reusability and maintainability.
+
+Key Features:
+- User management operations (create, retrieve, authenticate)
+- Game-related operations (TBD)
+
+Usage:
+    from api import crud
+    
+    # In your route handler:
+    user = await crud.get_user_by_username(session=db, username="example")
+
+Dependencies:
+- FastAPI for HTTP exception handling
+- MongoDB for database operations
+- Custom security utils for password hashing
+"""
+
+from typing import Optional
 
 from fastapi import HTTPException, status
 
 from api.deps import Session
 from api.core.security import get_password_hash, verify_password
 from api.models import User, UserRegister
+
 
 # = User ==============================================================
 
@@ -75,6 +99,7 @@ async def authenticate(*, session : Session, username : str, password : str) -> 
     return user
 # =====================================================================
 
+# NOTE add more 
 
 # = Game ==============================================================
 
