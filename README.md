@@ -6,8 +6,6 @@ Before you begin, ensure you have the following installed:
 - [MongoDB](https://www.mongodb.com/) account
 - Git
 
-## Getting Started
-
 ## 🚀 Getting Started
 
 ### 1. MongoDB Setup
