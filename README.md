@@ -1,36 +1,108 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## 📋 Prerequisites
+
+Before you begin, ensure you have the following installed:
+- [Python](https://python.org/) (3.8 or higher)
+- [Node.js](https://nodejs.org/) (14.x or higher)
+- [MongoDB](https://www.mongodb.com/) account
+- Git
 
 ## Getting Started
 
-First, run the development server:
+## 🚀 Getting Started
 
+### 1. MongoDB Setup
+
+1. Create a [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) account
+2. Create a new cluster
+3. In the MongoDB Atlas dashboard:
+   - Click "Connect"
+   - Choose "Connect your application"
+   - Copy your connection string
+
+### 2. Environment Configuration
+
+1. Copy the `config.test.env` file to create a new `.env` file:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Fill in the MongoDB settings in your `.env` file:
+   ```
+   MONGODB_DB_NAME=your_database_name
+   MONGODB_USER=your_username
+   MONGODB_PASSWORD=your_password
+   MONGODB_HOST=your_cluster_host
+   MONGODB_PROTOCOL=mongodb+srv
+   ```
+
+3. Update other environment variables as needed:
+   - `SECRET_KEY`: Generate a secure secret key
+   - `PROJECT_NAME`: Your project name
+   - `SENTRY_DSN`: (Optional) Not needed for now, mainly using Sentry for error tracking
+
+### 3. Backend Setup
+
+1. Create and activate a Python virtual environment:
+   ```bash
+   # Using venv
+   python -m venv .venv
+   
+   # Activate on Windows
+   .venv\Scripts\activate
+   
+   # Activate on macOS/Linux
+   source .venv/bin/activate
+   ```
+
+2. Install Python dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+### 4. Frontend Setup
+
+1. Install Node.js dependencies:
+   ```bash
+   npm install
+   ```
+
+## 🏃‍♂️ Running the Application
+
+Start both frontend and backend with a single command:
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+For just starting the backend you can look into package manager, and see where just running
+```bash
+uvicorn api.main:app --reload --reload-dir api
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The application will be available at:
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🔧 API Configuration
 
-## Learn More
+The API is configured with the following default settings:
+- API prefix: `/api/`
+- Token expiration: 30 days
+- CORS enabled for:
+  - http://localhost:3000
+  - http://localhost:8000
 
-To learn more about Next.js, take a look at the following resources:
+## 🔒 Security Notes
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Always change the `SECRET_KEY` in production
+2. Ensure proper CORS settings for production environments
+3. Never commit the `.env` file to version control
+4. Use secure passwords for MongoDB
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🤝 Contributing
 
-## Deploy on Vercel
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Open a Pull Request
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
