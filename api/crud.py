@@ -21,6 +21,8 @@ Dependencies:
 - MongoDB for database operations
 - Custom security utils for password hashing
 """
+import re
+
 from typing import Optional
 from datetime import datetime, UTC
 
@@ -45,7 +47,7 @@ async def get_user_by_username(*, session: Session, username: str) -> Optional[U
         Optional[User]: User if found, None otherwise
     """
 
-    user_data = await session.users.find_one({"username": username})
+    user_data = await session.users.find_one({"username": re.compile(f"^{username}$", re.IGNORECASE)})
 
     if user_data:
         return User(**user_data)
