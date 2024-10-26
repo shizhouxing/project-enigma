@@ -28,15 +28,15 @@ Usage:
     public_user = UserPublic.from_user(user)
 """
 
-from datetime import datetime, timedelta
-from typing import Optional, Any
+from datetime import datetime, UTC
+from typing import Optional, Any, Literal
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from bson import ObjectId
 
 # Base Message Model
 class Message(BaseModel):
     """Generic response message"""
-    status: str = "success"
+    status: Literal["success", "failed"] = "success"
     message: Optional[str] = None
     data: Optional[Any] = None
 
@@ -108,7 +108,10 @@ class User(UserBase):
         description="Hashed password for user authentication"
     )
     access_token: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=datetime.now)
+    last_login : Optional[datetime] = None
+    last_signout : Optional[datetime] = None
+
 
 class UserPublic(BaseModel):
     """Public user information model"""

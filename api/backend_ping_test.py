@@ -1,10 +1,11 @@
 import asyncio
+from typing import Coroutine, Any
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from api.core.config import settings
 
 
-async def db_ping_server():
+async def db_ping_server() -> Coroutine[Any, Any, None]:
     """
     simple ping to the mongodb server
 

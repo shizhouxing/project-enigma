@@ -9,13 +9,15 @@ secure authentication.
 Routes:
 - POST /login/access-token: Login endpoint returning JWT token
 - POST /login/test-token: Endpoint to validate JWT token
+- GET /verify-token: verify if token is valid
 
 Dependencies:
 - FastAPI OAuth2 for authentication
 - JWT for token generation
 - MongoDB for user storage
 """
-from datetime import timedelta
+
+from datetime import datetime, timedelta, UTC
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -24,14 +26,15 @@ from fastapi.security import OAuth2PasswordRequestForm
 from api import crud
 from api.deps import CurrentUser, get_db
 from api.core import security
+from api.core.security import verify_expired
 from api.core.config import settings
-from api.models import Token, UserPublic, User
+from api.models import Token, UserPublic, User, Message
 
 
 
 router = APIRouter()
 
-@router.post("/login/access-token", response_model=Token)
+@router.post("/login/access-token", response_description="login authorization", response_model=Token)
 async def login_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     session: Any = Depends(get_db)
@@ -58,23 +61,26 @@ async def login_access_token(
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail="Incorrect email or password"
         )
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = security.create_access_token(
-        str(user.id),  # Convert ObjectId to string for token
-        expires_delta=access_token_expires
-    )
-   
+    access_token = user.access_token 
     try:
-        update_result = await session.users.update_one(
-            {"_id": user.id},
-            {"$set": {"access_token": access_token}}
-        )
-        
-        if update_result.modified_count == 0:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to update user token"
+        # check if the the token has been expired
+        if verify_expired(token=user.access_token):
+            access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+            access_token = security.create_access_token(
+                str(user.id),  # Convert ObjectId to string for token
+                expires_delta=access_token_expires
             )
+    
+            update_result = await session.users.update_one(
+                {"_id": user.id},
+                {"$set": {"access_token": access_token, "last_login" : datetime.now(UTC) }}
+            )
+        
+            if update_result.modified_count == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to update user token"
+                )
             
     except Exception as e:
         raise HTTPException(
@@ -88,7 +94,8 @@ async def login_access_token(
 
 @router.post("/login/test-token", response_model=UserPublic)
 async def test_token(current_user: CurrentUser) -> UserPublic:
-    """test the clients token
+    """
+    test the clients token
 
     Args:
         current_user (CurrentUser): dependency on the current client auth token
@@ -106,3 +113,26 @@ async def test_token(current_user: CurrentUser) -> UserPublic:
     pub_user = UserPublic.from_user(user)
     return pub_user
 
+@router.get("/verify-token", response_model=Message)
+async def test_token(current_user: CurrentUser) -> Message:
+    """test the clients token
+
+    Args:
+        current_user (CurrentUser): dependency on the current client auth token
+
+    Returns:
+        UserPublic: public information of the user 
+    """
+    user = User.model_validate(current_user)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return Message(
+        status="success",
+        message="token is valid",
+        data=True
+    )

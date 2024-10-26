@@ -8,23 +8,23 @@ functionality for the application.
 
 Routes:
 - POST /signup: User registration
-- GET /{user_id}: Retrieve user details
 - POST /logout: User logout
+- GET /{user_id}: Retrieve user details
+- GET /available: check if username is available
 
 Dependencies:
 - FastAPI for route handling
 - MongoDB for user storage
 - Pydantic for data validation
 """
-
-from typing import Any
+import re
 
 from bson import ObjectId
 from bson.errors import InvalidId
 
 from pydantic import ValidationError
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Query, Depends, HTTPException, status
 
 from api import crud
 from api.deps import (
@@ -42,11 +42,24 @@ from api.models import (
 
 router = APIRouter()
 
-
 @router.post("/signup", response_model=UserPublic)
 async def register_user(session : Session, user_in : UserRegister) -> UserPublic:
     """
-    Create new user without the need to be logged in.
+    Register a new user in the system.
+    
+    This endpoint allows for user registration without requiring authentication.
+    It checks for username uniqueness before creating the new user account.
+    
+    Args:
+        session (Session): Database session for performing database operations
+        user_in (UserRegister): User registration data including username and password
+        
+    Returns:
+        UserPublic: Public user information of the newly created user
+        
+    Raises:
+        HTTPException (400): If the username is already taken
+    
     """
     user = await crud.get_user_by_username(session=session, username=user_in.username)
     if user:
@@ -54,26 +67,101 @@ async def register_user(session : Session, user_in : UserRegister) -> UserPublic
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="The user with this username already exists in the system.",
         )
+    
     user = await crud.create_user(session=session, user_create=user_in)
     return UserPublic.from_user(user)
+
+@router.post("/logout")
+async def logout(
+    current_user: CurrentUser,
+    session: Session
+) -> Message:
+    """
+    Logout the current user and invalidate their access token.
+    
+    This endpoint handles user logout by clearing the user's active token
+    from the system and ending their current session.
+    
+    Args:
+        current_user (CurrentUser): The currently authenticated user
+        session (Session): Database session for performing database operations
+        
+    Returns:
+        Message: Success message indicating successful logout
+        
+    Raises:
+        HTTPException (500): If an unexpected error occurs during logout
+    """
+    try:
+
+        user = User.model_validate(current_user)
+        await clear_user_token(session, user.id)
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred: {str(e)}"
+        )
+    
+    return Message(
+        message="Successfully logged out",
+        status="success",
+        data=True
+    )
+
+
+@router.get("/available")
+async def is_available_username(session : Session,
+                                username : str = Query(..., min_length=3, max_length=50, pattern="^[a-zA-Z0-9_-]+$")) -> Message:
+    """
+    Check if a username is available for registration.
+    
+    This endpoint performs a case-insensitive check to determine if the
+    requested username is already taken in the system.
+    
+    Args:
+        session (Session): Database session for performing database operations
+        username (str): The username to check for availability
+        
+    Returns:
+        Message: Success message if username is available
+        
+    Raises:
+        HTTPException (400): If the username is already taken
+    """
+    user = await session.users.find_one({"username": re.compile(f"^{username}$", re.IGNORECASE)})
+    if user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The user with this username already exists in the system.",
+        )
+    return Message(
+        message="Successful username is currently available",
+        status="success",
+        data=True
+    )
 
 @router.get("/{user_id}", response_model=UserPublic)
 async def read_user_by_id(
     user_id: str, session: Session
 ) -> UserPublic:
-    """Get a specific user by id.
-
+    """
+    Retrieve user information by their unique identifier.
+    
+    This endpoint fetches and returns public user information for the specified
+    user ID. It includes validation of the ID format and handles various error cases.
+    
     Args:
-        user_id (str): _description_
-        session (Session): _description_
-
-    Raises:
-        HTTPException: _description_
-        HTTPException: _description_
-        HTTPException: _description_
-
+        user_id (str): The unique identifier of the user to retrieve
+        session (Session): Database session for performing database operations
+        
     Returns:
-        UserPublic: _description_
+        UserPublic: Public user information for the requested user
+        
+    Raises:
+        HTTPException (400): If the user ID format is invalid
+        HTTPException (404): If no user is found with the specified ID
+        HTTPException (422): If the retrieved user data fails validation
     """
     try:
         object_id = ObjectId(user_id)
@@ -102,28 +190,3 @@ async def read_user_by_id(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(e)
         )
-    
-
-@router.post("/logout")
-async def logout(
-    current_user: CurrentUser,
-    session: Session
-) -> Message:
-    """
-    Logout endpoint that clears the user's access token.
-    """
-    try:
-
-        user = User.model_validate(current_user)
-        await clear_user_token(session, user.id)
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An unexpected error occurred: {str(e)}"
-        )
-    
-    return Message(
-        message="Successfully logged out",
-        status="success"
-    )
