@@ -10,6 +10,8 @@ Before you begin, ensure you have the following installed:
 
 ### 1. MongoDB Setup
 
+Before we run any code we need to set up a MongoDB account and make sure free cluster, since it's not necessary to pay.
+
 1. Create a [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) account
 2. Create a new cluster
 3. In the MongoDB Atlas dashboard:
@@ -25,6 +27,8 @@ Before you begin, ensure you have the following installed:
    ```
 
 2. Fill in the MongoDB settings in your `.env` file:
+
+   Within the MongoDB atlas dashboard, if you press connect, you can find information you need to add into your ``.env``.
    ```
    MONGODB_DB_NAME=your_database_name
    MONGODB_USER=your_username
@@ -34,14 +38,14 @@ Before you begin, ensure you have the following installed:
    # <MONGODB_PROTOCOL>://<MONGODB_USER>:<MONGODB_PASSWORD>@<MONGODB_HOST>/?retryWrites=true&w=majority&appName=<MONGODB_DB_NAME>
    ```
 
-3. Update other environment variables as needed:
+4. Update other environment variables as needed:
    - `SECRET_KEY`: Generate a secure secret key
    - `PROJECT_NAME`: Your project name
    - `SENTRY_DSN`: (Optional) Not needed for now, mainly using Sentry for error tracking
 
 ### 3. Backend Setup
 
-1. Create and activate a Python virtual environment:
+1. Create and activate a Python virtual environment \w any virtual environment of choice:
    ```bash
    # Using venv
    python -m venv .venv
@@ -51,6 +55,14 @@ Before you begin, ensure you have the following installed:
    
    # Activate on macOS/Linux
    source .venv/bin/activate
+   ```
+   
+   ```bash
+   # Create a new conda environment
+   conda create --name myenv python=3.12
+   
+   # Activate the conda environment
+   conda activate myenv
    ```
 
 2. Install Python dependencies:
@@ -69,15 +81,15 @@ Before you begin, ensure you have the following installed:
 
 Start both frontend and backend with a single command:
 ```bash
-npm run dev
+npm run dev # or make frontend
 ```
 
 For just starting the backend you can look into package manager, and see where just running
 ```bash
-uvicorn api.main:app --reload --reload-dir api
+uvicorn api.main:app --reload # or make backend
 ```
 
-The application will be available at:
+The application will be available at (assuming those ports were open):
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:8000
 
