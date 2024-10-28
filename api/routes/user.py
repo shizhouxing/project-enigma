@@ -42,8 +42,8 @@ from api.models import (
 
 router = APIRouter()
 
-@router.post("/signup", response_model=UserPublic)
-async def register_user(session : Session, user_in : UserRegister) -> UserPublic:
+@router.post("/signup", response_model=Message)
+async def register_user(session : Session, user_in : UserRegister) -> Message:
     """
     Register a new user in the system.
     
@@ -68,8 +68,12 @@ async def register_user(session : Session, user_in : UserRegister) -> UserPublic
             detail="The user with this username already exists in the system.",
         )
     
-    user = await crud.create_user(session=session, user_create=user_in)
-    return UserPublic.from_user(user)
+    await crud.create_user(session=session, user_create=user_in)
+    return Message(
+        message="Successfully create user",
+        status="success",
+        data=True
+    )
 
 @router.post("/logout")
 async def logout(
@@ -131,9 +135,10 @@ async def is_available_username(session : Session,
     """
     user = await session.users.find_one({"username": re.compile(f"^{username}$", re.IGNORECASE)})
     if user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="The user with this username already exists in the system.",
+        return Message(
+            message="Username is currently taken",
+            status="success",
+            data=False   
         )
     return Message(
         message="Successful username is currently available",
