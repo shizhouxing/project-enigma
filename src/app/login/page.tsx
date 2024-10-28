@@ -3,7 +3,6 @@ import Link from "next/link";
 import { NoisePattern } from "@/components/noise_pattern";
 import { AuthForms } from "@/components/auth_form";
 import { checkUsername, login, signup } from "@/service/auth"
-import { redirect } from "next/navigation";
 
 export default async function AuthenticationPage() {
 
