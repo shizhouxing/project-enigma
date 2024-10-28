@@ -1,4 +1,7 @@
 import jwt
+
+from datetime import datetime, UTC
+
 from bson.errors import InvalidId
 from bson import ObjectId
 from typing import Annotated, Any, Generator
@@ -10,7 +13,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
 from api.core.config import settings
-from api.core.security import ALGORITHM
+from api.core.security import ALGORITHM, verify_expired
 from api.models import User
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
@@ -51,6 +54,13 @@ async def get_current_user(
     """
     user_id = None
     try:
+        if verify_expired(token):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not validate credentials due to expired token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[ALGORITHM]
         )
@@ -74,12 +84,21 @@ async def get_current_user(
         )
     
     user = await session.users.find_one({"_id": user_id})
+
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    if user["access_token"] != token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="The token you enter is has not been updated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     return user
 
 async def clear_user_token(session: Session, user_id: ObjectId) -> None:
@@ -93,7 +112,7 @@ async def clear_user_token(session: Session, user_id: ObjectId) -> None:
     try:
         await session.users.update_one(
             {"_id": user_id},
-            {"$set": {"access_token": None}}
+            {"$set": {"access_token": None, "last_signout" : datetime.now(UTC)}}
         )
     except Exception:
         # Log error but don't raise - this is a cleanup operation
