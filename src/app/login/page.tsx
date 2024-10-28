@@ -17,7 +17,7 @@ export default async function AuthenticationPage() {
     "use server";
     const result = await login(formData);
     if (result.success) {
-      redirect("/");
+      return { success: true };
     }
     return { success: false, message: result.message };
   }

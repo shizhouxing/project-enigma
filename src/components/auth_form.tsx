@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
 import { SignupFormSchema } from "@/lib/definition";
 import { z } from "zod";
+import { useRouter } from "next/navigation";
 
 interface AuthFormsProps {
   onUsernameSubmit: (username: string) => Promise<any>;
@@ -20,6 +21,7 @@ export const AuthForms = ({
   onSignIn,
   onSignUp,
 }: AuthFormsProps) => {
+  const router = useRouter()
   const [state, setState] = useState("username")
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -55,7 +57,7 @@ export const AuthForms = ({
       if (!response.success){
         setError([response.message])
       } else {
-        setState(response.step)
+        router.push("/")
       }
       
     } finally {
