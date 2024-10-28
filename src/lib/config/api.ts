@@ -2,6 +2,7 @@ export const API_CONFIG = {
     ENDPOINTS : {
         AUTH: {
             LOGIN: '/api/login/access-token',
+            VERIFY: '/api/verify-token'
           },
         USER : {
             REGISTER: '/api/signup',

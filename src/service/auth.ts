@@ -96,7 +96,7 @@ export async function logout(): Promise<void> {
   try {
     if (authToken) {
       const _ = await api.post<void>(
-        API_CONFIG.ENDPOINTS.USER.LOGOUT, {
+        API_CONFIG.ENDPOINTS.USER.LOGOUT, null ,{
         headers: {
           Authorization: `Bearer ${authToken.value}`,
         },
@@ -104,11 +104,33 @@ export async function logout(): Promise<void> {
     }
 
     cookieStore.delete("auth-token");
-    redirect("/");
   } catch (error) {
     console.error("Logout error:", error);
     throw new Error("An error occurred during logout");
   }
+}
+
+export async function validateToken(token : string | undefined) : Promise<boolean> {
+
+  if (!token){
+    return false;
+  }
+  try {
+
+    const response = await api.get<AuthResponse>(
+      API_CONFIG.ENDPOINTS.AUTH.VERIFY, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return (response as AuthResponse).data as boolean;
+  } catch(err){
+    return false;
+  }
+  
+
+
+
 }
 
 // Helper function to get the current auth token
