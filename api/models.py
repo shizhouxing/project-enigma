@@ -29,7 +29,7 @@ Usage:
 """
 
 from datetime import datetime, UTC
-from typing import Optional, Any, Literal
+from typing import Optional, Any, Literal, List
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from bson import ObjectId
 
@@ -135,5 +135,117 @@ class UserPublic(BaseModel):
             _id=str(user.id),
             username=user.username
         )
+
+class GameSessionCreateResponse(BaseModel):
+    """Response model for creating a new game session"""
+    session_id: ObjectId = Field(default_factory=ObjectId, alias="_id")
+    target: str
     
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "session_id": "64b2c8f9b3e3b975c9d3e8d9",
+                "target": "Hello"
+            }
+        }
+
+class GameSessionChatResponse(BaseModel):
+    """Response model for chatting in a game session"""
+    model_output: str
+    outcome: str
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "model_output": "This is the response from the model.",
+                "outcome": "win"
+            }
+        }
+
+class GameSessionHistoryItem(BaseModel):
+    """Model representing a single item in the game session history response."""
+    session_id: str
+    target: str
+    outcome: str
+    duration: float
+
+class GameSessionHistoryResponse(BaseModel):
+    """Response model for retrieving game session history."""
+    history: List[GameSessionHistoryItem]
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "history": [
+                    {
+                        "session_id": "64b2c8f9b3e3b975c9d3e8d9",
+                        "target_phrase": "Hello, how are you?",
+                        "outcome": "win",
+                        "duration": 300.5
+                    },
+                    {
+                        "session_id": "64b2c8f9b3e3b975c9d3e8da",
+                        "target_phrase": "Hello, how are you?",
+                        "outcome": "loss",
+                        "duration": 150.0
+                    }
+                ]
+            }
+        }
+
+class Game(BaseModel):
+    """Game model for Game object"""
+    game_id: ObjectId = Field(default_factory=ObjectId, alias="_id")
+    contexts: List[str]
+    judge_id: ObjectId
+
+    class Config:
+        arbitrary_types_allowed=True
+        json_encoders = {ObjectId: str}
+        schema_extra = {
+            "example": {
+                "game_id": "507f1f77bcf86cd799439011", 
+                "contexts": ["hello", "goodbye"],
+                "judge_id": "507f1f77bcf86cd799439011"
+            }
+        }
+
+class Context(BaseModel):
+    """Model representing a single context entry in history of the GameSession object."""
+    role: str
+    content: str
+
+class GameSession(BaseModel):
+    """Session model for Session object"""
+    session_id: ObjectId = Field(default_factory=ObjectId, alias="_id")
+    user_id: ObjectId
+    game_id: ObjectId
+    model_id: ObjectId
+    history: List[Context]
+    completed: bool
+    create_time: datetime
+    outcome: Optional[str]
+    shared: bool
+    target: str
+    complete_time: Optional[datetime]
+
+    class Config:
+        arbitrary_types_allowed=True
+        json_encoders = {ObjectId: str}
+        schema_extra = {
+            "example": {
+                "session_id": "507f1f77bcf86cd799439011",
+                "user_id": "507f1f77bcf86cd799439012",
+                "game_id": "507f1f77bcf86cd799439013",
+                "model_id": "507f1f77bcf86cd799439014",
+                "history": [{"role": "model", "content": "Hello"}, {"role": "user", "content": "Hello"}],
+                "completed": False,
+                "create_time": "2024-10-28T12:00:00Z",
+                "outcome": None,
+                "shared": False,
+                "target": "Hello, how are you?",
+                "complete_time": None
+            }
+        }
+
 # NOTE if you need more Models then continue here
