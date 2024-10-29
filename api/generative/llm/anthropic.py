@@ -1,7 +1,7 @@
 import os
 from typing import List, Dict, Any, Iterable, NewType
 
-# Check if the Google Generative AI module is available
+# Check if the anthropic module is available
 try:
     import anthropic
     ANTHROPIC_MODULE_AVAILABLE = True
