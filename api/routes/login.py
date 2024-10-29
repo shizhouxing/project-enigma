@@ -92,27 +92,6 @@ async def login_access_token(
         access_token=access_token
     )
 
-@router.post("/login/test-token", response_model=UserPublic)
-async def test_token(current_user: CurrentUser) -> UserPublic:
-    """
-    test the clients token
-
-    Args:
-        current_user (CurrentUser): dependency on the current client auth token
-
-    Returns:
-        UserPublic: public information of the user 
-    """
-    user = User.model_validate(current_user)
-    if user.access_token is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    pub_user = UserPublic.from_user(user)
-    return pub_user
-
 @router.get("/verify-token", response_model=Message)
 async def test_token(current_user: CurrentUser) -> Message:
     """test the clients token
