@@ -91,7 +91,6 @@ export class ApiClient {
     path: string,
     config: RequestConfig = {}
   ): Promise<T> {
-    console.log('Request config:', config);
     const {
       params,
       timeout = this.defaultTimeout,
@@ -137,8 +136,6 @@ export class ApiClient {
         requestConfig.body = String(body);
       }
     }
-  
-    console.log('Final request config:', requestConfig);
   
     try {
       // Race between fetch and timeout

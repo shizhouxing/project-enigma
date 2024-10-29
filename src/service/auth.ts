@@ -1,8 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import { ApiClient } from "@/utils/api";
+import { ApiClient } from "@/service/api";
 import { AuthResponse, TokenResponse } from "@/types/auth";
 import { API_CONFIG } from "@/lib/config/api";
 
