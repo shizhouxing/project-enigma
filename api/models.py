@@ -29,8 +29,8 @@ Usage:
 """
 
 from datetime import datetime, UTC
-from typing import Optional, Any, Literal, List
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from typing import Optional, Any, Literal, List, Union
+from pydantic import BaseModel, Field, ConfigDict, field_validator, HttpUrl
 from bson import ObjectId
 
 # Base Message Model
@@ -136,50 +136,157 @@ class UserPublic(BaseModel):
             username=user.username
         )
 
+class Judge(BaseModel):
+    id: ObjectId = Field(default_factory=ObjectId, alias="_id")
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: Optional[datetime] = Field(default_factory=datetime.now)
+    active : bool
+    sampler : Any
+    validator : Any # NOTE: set this to 
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_encoders = {ObjectId: str},
+        json_schema_extra = {
+            "example": {
+                "id": "507f1f77bcf86cd799439011",
+                "active" : True,
+                "created_at" : datetime.now(UTC),
+                "updated_at" : None,
+                "sampler" : {
+                    "type": "function",
+                    "function": {
+                        "name": "get_bad_word",
+                        "parameters": {},
+	                    "return" : "string"
+                    }
+                },
+                "validator" : {
+                    "type": "function",
+                    "function": {
+                        "name": "get_target_bad_word",
+                        "parameters": {
+                            "source": {
+                            "type": "string",
+                            "description": "user output of injected prompt"
+                            },
+                            "target": {
+                            "type": "string",
+                            "description": "the targeted prompt."
+                            }
+                        },	  
+                        "return" : "bool"
+                    }      
+                }
+            }
+        }
+    )
+
+class Context(BaseModel):
+    """Model for conversation context"""
+    role: str = Field(..., description="Role of the message sender (user/model)")
+    content: str = Field(..., description="Content of the message")
+
+class Game(BaseModel):
+    """Game model for Game object"""
+    id: ObjectId = Field(default_factory=ObjectId, alias="_id")
+    judge_id: ObjectId
+    title : str
+    author : str
+    description : str
+    image : Union[HttpUrl, str]
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: Optional[datetime] = Field(default_factory=datetime.now)
+    stars : int = 0
+    metadata : dict
+
+    
+    
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_encoders = {ObjectId: str},
+        json_schema_extra = {
+            "example": {
+                "id": "507f1f77bcf86cd799439011",
+                "judge_id": "507f1f77bcf86cd799439011",
+                "title": "Bad Words",
+                "author": "LMSYS & Pliny",
+                "description": "...",
+                "image": "https://avatars.githubusercontent.com/u/66436953?v=4&size=64",
+                "created_at" : datetime.now(UTC),
+                "updated_at" : None,
+                "stars": 999,
+                "metadata": {
+                    "model_config": {
+                        "system_prompt": "",
+                        "temperature": 0.7,
+                        "max_tokens": 150,
+                        "tools_config": {
+                            "enabled": False,
+                            "tools": []
+                        },
+                    },
+                    "game_rules": {
+                        "timed": True,
+                        "time_limit": 90000, 
+                    },
+               }
+            }
+        }
+    )
+
+
+
 class GameSessionCreateResponse(BaseModel):
     """Response model for creating a new game session"""
     session_id: ObjectId = Field(default_factory=ObjectId, alias="_id")
-    target: str
+
     
-    class Config:
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_encoders = {ObjectId: str},
         json_schema_extra = {
             "example": {
                 "session_id": "64b2c8f9b3e3b975c9d3e8d9",
-                "target": "Hello"
             }
         }
+    )
 
 class GameSessionChatResponse(BaseModel):
     """Response model for chatting in a game session"""
-    model_output: str
+    output: str
     outcome: str
-
-    class Config:
-        schema_extra = {
+      
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_encoders = {ObjectId: str},
+        json_schema_extra = {
             "example": {
                 "model_output": "This is the response from the model.",
                 "outcome": "win"
             }
         }
+    )
+
 
 class GameSessionHistoryItem(BaseModel):
     """Model representing a single item in the game session history response."""
     session_id: str
-    target: str
-    outcome: str
+    outcome: Literal['win', 'loss', 'forfeit']
     duration: float
 
 class GameSessionHistoryResponse(BaseModel):
     """Response model for retrieving game session history."""
     history: List[GameSessionHistoryItem]
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_encoders = {ObjectId: str},
+        json_schema_extra = {
             "example": {
                 "history": [
                     {
                         "session_id": "64b2c8f9b3e3b975c9d3e8d9",
-                        "target_phrase": "Hello, how are you?",
                         "outcome": "win",
                         "duration": 300.5
                     },
@@ -191,61 +298,49 @@ class GameSessionHistoryResponse(BaseModel):
                     }
                 ]
             }
-        }
-
-class Game(BaseModel):
-    """Game model for Game object"""
-    game_id: ObjectId = Field(default_factory=ObjectId, alias="_id")
-    contexts: List[str]
-    judge_id: ObjectId
-
-    class Config:
-        arbitrary_types_allowed=True
-        json_encoders = {ObjectId: str}
-        schema_extra = {
-            "example": {
-                "game_id": "507f1f77bcf86cd799439011", 
-                "contexts": ["hello", "goodbye"],
-                "judge_id": "507f1f77bcf86cd799439011"
-            }
-        }
-
-class Context(BaseModel):
-    """Model representing a single context entry in history of the GameSession object."""
-    role: str
-    content: str
+        })
 
 class GameSession(BaseModel):
     """Session model for Session object"""
-    session_id: ObjectId = Field(default_factory=ObjectId, alias="_id")
+    id: ObjectId = Field(default_factory=ObjectId, alias="_id")
     user_id: ObjectId
     game_id: ObjectId
+    judge_id: ObjectId
     model_id: ObjectId
-    history: List[Context]
-    completed: bool
-    create_time: datetime
-    outcome: Optional[str]
-    shared: bool
-    target: str
-    complete_time: Optional[datetime]
+    history: Optional[List[Context]] = Field(default_factory=list)
+    completed: bool = False
+    create_time: datetime = Field(default_factory=datetime.now)
+    complete_time: Optional[datetime] = None
+    outcome: Optional[str] = None
+    shared: Optional[HttpUrl] = None
 
-    class Config:
-        arbitrary_types_allowed=True
-        json_encoders = {ObjectId: str}
-        schema_extra = {
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_encoders={ObjectId: str},
+        json_schema_extra={
             "example": {
                 "session_id": "507f1f77bcf86cd799439011",
                 "user_id": "507f1f77bcf86cd799439012",
                 "game_id": "507f1f77bcf86cd799439013",
-                "model_id": "507f1f77bcf86cd799439014",
-                "history": [{"role": "model", "content": "Hello"}, {"role": "user", "content": "Hello"}],
+                "judge_id": "507f1f77bcf86cd799439014",
+                "model_id": "507f1f77bcf86cd799439015",
+                "history": [
+                    {
+                        "role": "model",
+                        "content": "Hello, welcome to the game!"
+                    },
+                    {
+                        "role": "user",
+                        "content": "Hi, I'm ready to play!"
+                    }
+                ],
                 "completed": False,
                 "create_time": "2024-10-28T12:00:00Z",
+                "complete_time": None,
                 "outcome": None,
-                "shared": False,
-                "target": "Hello, how are you?",
-                "complete_time": None
+                "shared": None
             }
         }
+    )
 
-# NOTE if you need more Models then continue here
+# # NOTE if you need more Models then continue here
