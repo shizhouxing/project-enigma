@@ -1,10 +1,12 @@
 import { z } from 'zod'
  
+export const usernameSchema = z
+.string()
+.min(1, { message: 'Name must be at least 2 characters long.' })
+.trim()
+
 export const SignupFormSchema = z.object({
-  username: z
-    .string()
-    .min(1, { message: 'Name must be at least 2 characters long.' })
-    .trim(),
+  username: usernameSchema,
   password: z
     .string()
     .min(8, { message: 'Be at least 8 characters long' })

@@ -1,9 +1,12 @@
 import asyncio
+import logging
 from typing import Coroutine, Any
 from motor.motor_asyncio import AsyncIOMotorClient
+import time
 
 from api.core.config import settings
 
+logger = logging.getLogger('uvicorn.error')
 
 async def db_ping_server() -> Coroutine[Any, Any, None]:
     """
@@ -17,9 +20,13 @@ async def db_ping_server() -> Coroutine[Any, Any, None]:
     client = AsyncIOMotorClient(uri)
 
     try: 
+        start = time.time()
         result = await client.admin.command("ping")
-        print(f"client pinged server to check if healthy result: {result}")
+        end = time.time()
+        logger.info(f"client pinged server to check if healthy result: {bool(result.get("ok"))}")
+        logger.info(f"ping elapse time: {round((end - start), 3)}s")
     except Exception as e:
+        logger.error(f"Something has occurred: {e}")
         raise e
 
 if __name__ == "__main__":

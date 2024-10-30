@@ -39,8 +39,8 @@ async def test_signup_username():
         json=user_data  # Send as JSON to match FastAPI's automatic parsing
     )
     assert response.status_code == status.HTTP_200_OK, response.json()
-    response_data = response.json()
-    assert response_data.get("username") == username
+    response = response.json()
+    assert response.get("data"), "User was not created"
 
     # Test duplicate username (capitalized)
     duplicate_data = {
@@ -73,8 +73,10 @@ async def test_login_username():
             "password": password
         }
     )
+
     assert response.status_code == 200, response.json()
-    assert response.json().get("username") == username
+    response = response.json()
+    assert response.get("data"), "User was not created"
     
     # Login to get access token
     # Note: Using data parameter for form-urlencoded, not json
@@ -106,127 +108,3 @@ async def test_login_username():
     client_db = AsyncIOMotorClient(settings.MONGODB_DATABASE_URI)
     db = client_db[settings.MONGODB_NAME]
     await db.users.delete_one({"username": username})
-
-
-
-
-# @pytest.fixture(scope="module")
-# def event_loop():
-#     """Create an instance of the default event loop for the test session."""
-#     import asyncio
-#     loop = asyncio.get_event_loop_policy().new_event_loop()
-#     yield loop
-#     loop.close()
-
-# @pytest.fixture(scope="module")
-# async def mongo_client():
-#     """Create a MongoDB client for testing."""
-#     client = AsyncIOMotorClient(settings.MONGODB_DATABASE_URI)
-#     # Clear database before tests
-#     await client.drop_database(settings.MONGODB_NAME)
-#     yield client
-#     # Cleanup after tests
-#     await client.drop_database(settings.MONGODB_NAME)
-#     client.close()
-
-# @pytest.fixture(scope="module")
-# async def http_client():
-#     """Create an async HTTP client for testing."""
-#     async with AsyncClient(app=app, base_url="http://0.0.0.0:8000") as client:
-#         yield client
-
-# @pytest.fixture(scope="function")
-# async def clean_db(mongo_client):
-#     """Get clean test database for each test."""
-#     db = mongo_client[settings.MONGODB_NAME]
-#     # Clear all collections before each test
-#     collections = await db.list_collection_names()
-#     for collection in collections:
-#         await db[collection].delete_many({})
-#     return db
-
-# @pytest.mark.asyncio
-# async def test_register_user_success(http_client, clean_db):
-#     """Test successful user registration flow."""
-#     user_data = {
-#         "username": "testuser",
-#         "password": "SecurePass123!"
-#     }
-
-#     # 1. Check username availability
-#     availability_response = await http_client.get(
-#         "/available",
-#         params={"username": user_data["username"]}
-#     )
-#     assert availability_response.status_code == 200
-#     assert availability_response.json()["data"] is True
-
-#     # 2. Register new user
-#     signup_response = await http_client.post(
-#         "/signup",
-#         json=user_data
-#     )
-#     assert signup_response.status_code == 200
-#     response_data = signup_response.json()
-#     assert response_data["username"] == user_data["username"]
-
-#     # 3. Verify user in database
-#     db_user = await clean_db.users.find_one({"username": user_data["username"]})
-#     assert db_user is not None
-#     assert db_user["username"] == user_data["username"]
-#     assert db_user["password"] != user_data["password"]  # password should be hashed
-
-# @pytest.mark.asyncio
-# async def test_register_duplicate_user(http_client, clean_db):
-#     """Test registration with duplicate username."""
-#     user_data = {
-#         "username": "duplicate_user",
-#         "password": "SecurePass123!"
-#     }
-
-#     # Register first user
-#     first_response = await http_client.post("/signup", json=user_data)
-#     assert first_response.status_code == 200
-
-# @pytest.mark.asyncio
-# async def test_username_validation(http_client):
-#     """Test username validation rules."""
-#     invalid_usernames = [
-#         "",  # Empty username
-#         "a",  # Too short
-#         "a" * 51,  # Too long
-#         "user@name",  # Invalid characters
-#         "admin"  # Reserved username
-#     ]
-
-#     for username in invalid_usernames:
-#         response = await http_client.post(
-#             "/signup",
-#             json={
-#                 "username": username,
-#                 "password": "SecurePass123!"
-#             }
-#         )
-#         assert response.status_code == 422, f"Username '{username}' should be invalid"
-
-# @pytest.mark.asyncio
-# async def test_password_validation(http_client):
-#     """Test password validation rules."""
-#     invalid_passwords = [
-#         "",  # Empty password
-#         "short",  # Too short
-#         "no_uppercase",  # No uppercase
-#         "NO_LOWERCASE",  # No lowercase
-#         "NoSpecial1",  # No special characters
-#         "NoNumbers!"  # No numbers
-#     ]
-
-#     for password in invalid_passwords:
-#         response = await http_client.post(
-#             "/signup",
-#             json={
-#                 "username": "testuser",
-#                 "password": password
-#             }
-#         )
-#         assert response.status_code == 422, f"Password '{password}' should be invalid"
