@@ -28,7 +28,7 @@ from fastapi import APIRouter, Query, Depends, HTTPException, status
 
 from api import crud
 from api.deps import (
-    Session, 
+    ClientSession, 
     CurrentUser,
     clear_user_token,
 )
@@ -43,7 +43,7 @@ from api.models import (
 router = APIRouter()
 
 @router.post("/signup", response_model=Message)
-async def register_user(session : Session, user_in : UserRegister) -> Message:
+async def register_user(session : ClientSession, user_in : UserRegister) -> Message:
     """
     Register a new user in the system.
     
@@ -51,7 +51,7 @@ async def register_user(session : Session, user_in : UserRegister) -> Message:
     It checks for username uniqueness before creating the new user account.
     
     Args:
-        session (Session): Database session for performing database operations
+        session (ClientSession): Database session for performing database operations
         user_in (UserRegister): User registration data including username and password
         
     Returns:
@@ -78,7 +78,7 @@ async def register_user(session : Session, user_in : UserRegister) -> Message:
 @router.post("/logout")
 async def logout(
     current_user: CurrentUser,
-    session: Session
+    session: ClientSession
 ) -> Message:
     """
     Logout the current user and invalidate their access token.
@@ -88,7 +88,7 @@ async def logout(
     
     Args:
         current_user (CurrentUser): The currently authenticated user
-        session (Session): Database session for performing database operations
+        session (ClientSession): Database session for performing database operations
         
     Returns:
         Message: Success message indicating successful logout
@@ -115,7 +115,7 @@ async def logout(
 
 
 @router.get("/available")
-async def is_available_username(session : Session,
+async def is_available_username(session : ClientSession,
                                 username : str = Query(..., min_length=3, max_length=50, pattern="^[a-zA-Z0-9_-]+$")) -> Message:
     """
     Check if a username is available for registration.
@@ -124,7 +124,7 @@ async def is_available_username(session : Session,
     requested username is already taken in the system.
     
     Args:
-        session (Session): Database session for performing database operations
+        session (ClientSession): Database session for performing database operations
         username (str): The username to check for availability
         
     Returns:
@@ -148,7 +148,7 @@ async def is_available_username(session : Session,
 
 @router.get("/{user_id}", response_model=UserPublic)
 async def read_user_by_id(
-    user_id: str, session: Session
+    user_id: str, session: ClientSession
 ) -> UserPublic:
     """
     Retrieve user information by their unique identifier.
@@ -158,7 +158,7 @@ async def read_user_by_id(
     
     Args:
         user_id (str): The unique identifier of the user to retrieve
-        session (Session): Database session for performing database operations
+        session (ClientSession): Database session for performing database operations
         
     Returns:
         UserPublic: Public user information for the requested user

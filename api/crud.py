@@ -28,7 +28,7 @@ from datetime import datetime, UTC
 
 from fastapi import HTTPException, status
 
-from api.deps import Session
+from api.deps import ClientSession
 from api.core.security import get_password_hash, verify_password
 from api.models import User, UserRegister, Game, GameSession
 from bson import ObjectId
@@ -37,11 +37,11 @@ import random
 
 # = User ==============================================================
 
-async def get_user_by_username(*, session: Session, username: str) -> Optional[User]:
+async def get_user_by_username(*, session: ClientSession, username: str) -> Optional[User]:
     """Retrieve user from database by username.
     
     Args:
-        session (Session): Database session
+        session (ClientSession): Database session
         username (str): Username to look up
         
     Returns:
@@ -55,11 +55,11 @@ async def get_user_by_username(*, session: Session, username: str) -> Optional[U
     return None
 
 
-async def create_user(*, session: Session, user_create: UserRegister) -> User:
+async def create_user(*, session: ClientSession, user_create: UserRegister) -> User:
     """Create new user in database.
     
     Args:
-        session (Session): Database session
+        session (ClientSession): Database session
         user_create (UserRegister): User registration data
         
     Returns:
@@ -99,7 +99,7 @@ async def create_user(*, session: Session, user_create: UserRegister) -> User:
             detail="An unexpected error occurred"
         ) from e
 
-async def authenticate(*, session : Session, username : str, password : str) -> Optional[User]:
+async def authenticate(*, session : ClientSession, username : str, password : str) -> Optional[User]:
     """
     
 
@@ -123,42 +123,78 @@ async def authenticate(*, session : Session, username : str, password : str) -> 
 
 # = Game ==============================================================
 
-async def get_game(*, session: Session, game_id: str) -> Optional[Game]:
+async def get_game(*, session: ClientSession, game_id: str) -> Game:
     """
-    Fetch Game object by its game_id
-
+    Fetch Game object by its game_id including associated judge information
+    
     Args:
-        session: MonogDB session instance
+        session: MongoDB session instance
         game_id (str): Unique session ID of GameSession
-
+        
     Returns:
-        Optional[Game]: Game object, if found
+        Game: Game object with judge information, if found
+        
+    Raises:
+        HTTPException: If game_id is invalid or game is not found
     """
-
-    try: 
-        # convert game_id to ObjectId
+    try:
         game_id_obj = ObjectId(game_id)
     except Exception:
         raise HTTPException(
-            status_code = status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid game_id format"
         )
-
-    game_data = await session["games"].find_one({"_id": game_id_obj}) #TODO: create collection called "games" for Game objects
+    
+    game_data = await session["games"].find_one({
+                "_id": game_id_obj
+        },)
+    
     if not game_data:
         raise HTTPException(
-            status_code = status.HTTP_404_NOT_FOUND,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Game not found"
         )
     
-    return Game(**game_data)
+
+    return Game.model_validate(game_data)
+
+async def get_games(*, session: ClientSession) -> List[Game]:
+    """
+    Fetch all games from the database
+    
+    Args:
+        session: MongoDB session instance
+        
+    Returns:
+        List[Game]: List of all games
+        
+    Raises:
+        HTTPException: If there's an error retrieving games
+    """
+    try:
+        # Convert cursor to list since find() returns a cursor
+        game_data = await session["games"].find({}).to_list(length=None)
+        
+        if game_data is None:  # This would be unusual - likely a connection issue
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Something went wrong when finding the games"
+            )
+            
+        return [Game.model_validate(game) for game in game_data]
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving games: {str(e)}"
+        )
 
 # =====================================================================
 
 
 # = Session ==============================================================
 
-async def create_game_session(*, session: Session, user_id: str, game_id: str, model_id: str, target: str) -> GameSession:
+async def create_game_session(*, session: ClientSession, user_id: str, game_id: str, model_id: str, target: str) -> GameSession:
     """
     Creates new game session in database
 
@@ -201,7 +237,7 @@ async def create_game_session(*, session: Session, user_id: str, game_id: str, m
     new_session["session_id"] = str(result.inserted_id)
     return GameSession(**new_session)
 
-async def get_session(*, session_id : str, session: Session) -> GameSession:
+async def get_session(*, session_id : str, session: ClientSession) -> GameSession:
     """
     Get session object by session_id
 
@@ -227,7 +263,7 @@ async def get_session(*, session_id : str, session: Session) -> GameSession:
         )
     return GameSession(**session_data)
 
-async def update_game_session(*, session: Session, session_id: str, updated_session: GameSession):
+async def update_game_session(*, session: ClientSession, session_id: str, updated_session: GameSession):
     """
     Update an existing GameSession in the database.
 
@@ -263,7 +299,7 @@ async def update_game_session(*, session: Session, session_id: str, updated_sess
 
     return {"message": "Session updated successfully"}
 
-async def get_sessions_for_user(user_id: str, session: Session) -> List[GameSession]:
+async def get_sessions_for_user(user_id: str, session: ClientSession) -> List[GameSession]:
     """
     Get all game sessions for a specific user.
 
@@ -299,7 +335,7 @@ async def get_sessions_for_user(user_id: str, session: Session) -> List[GameSess
 
 # = Model ==============================================================
 
-async def get_random_model_id(session: Session) -> str:
+async def get_random_model_id(session: ClientSession) -> str:
     """
     Fetch a random model ID from the Models collection.
 

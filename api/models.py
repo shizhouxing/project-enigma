@@ -190,16 +190,16 @@ class Game(BaseModel):
     """Game model for Game object"""
     id: ObjectId = Field(default_factory=ObjectId, alias="_id")
     judge_id: ObjectId
-    title : str
-    author : str
-    description : str
-    image : Union[HttpUrl, str]
+    title: str
+    author: List[str]
+    description: str
+    gameplay: Optional[str] = None  # Detailed gameplay description
+    objective: Optional[str] = None  # Description of the game's objective
+    image: Union[HttpUrl, str, None] = None
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: Optional[datetime] = Field(default_factory=datetime.now)
-    stars : int = 0
-    metadata : dict
-
-    
+    stars: int = Field(...)
+    metadata: dict = Field(...)
     
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
@@ -233,6 +233,8 @@ class Game(BaseModel):
             }
         }
     )
+
+    
 
 
 

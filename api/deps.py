@@ -32,19 +32,19 @@ def get_db() -> Generator[AsyncIOMotorDatabase, None, None]:
         client.close()
 
 # Annotation type that used in context we desire the read/write access to the db
-Session = Annotated[AsyncIOMotorDatabase, Depends(get_db)]
+ClientSession = Annotated[AsyncIOMotorDatabase, Depends(get_db)]
 
 
 async def get_current_user(
         token: Annotated[str, Depends(oauth2_scheme)],
-        session: Session
+        session: ClientSession
     ) -> Any:
     """
     Validate JWT token and return current user.
     
     Args:
         token (str): JWT token from authorization header
-        session (Session): Database session
+        session (ClientSession): Database session
         
     Returns:
         User: Current authenticated user
@@ -101,7 +101,7 @@ async def get_current_user(
 
     return user
 
-async def clear_user_token(session: Session, user_id: ObjectId) -> None:
+async def clear_user_token(session: ClientSession, user_id: ObjectId) -> None:
     """
     Clear a user's access token when it's no longer valid.
     

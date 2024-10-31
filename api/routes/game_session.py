@@ -3,7 +3,7 @@ import random
 from datetime import datetime, UTC
 from bson import ObjectId
 from api import crud
-from api.deps import Session, CurrentUser
+from api.deps import ClientSession, CurrentUser
 from api.models import GameSessionCreateResponse, GameSessionChatResponse, GameSessionHistoryResponse
 
 router = APIRouter()
@@ -12,7 +12,7 @@ router = APIRouter()
 async def create_session(
     game_id: str, 
     current_user: CurrentUser, 
-    session: Session
+    session: ClientSession
 ) -> GameSessionCreateResponse:
     """
     Creates a new game session for the currenet user with the specified game ID
@@ -53,7 +53,7 @@ async def chat(
     session_id: str, 
     user_input: str, 
     current_user: CurrentUser, 
-    session: Session
+    session: ClientSession
 ) -> GameSessionChatResponse:
     """
     Handle chat messages from the user.
@@ -98,7 +98,7 @@ async def chat(
 @router.get("/history")
 async def get_history(
     current_user: CurrentUser,
-    session: Session
+    session: ClientSession
 ):
     """
     Retrieves the chat history of all game sessions of current user
@@ -128,7 +128,7 @@ async def get_history(
 async def get_session_history(
     session_id: str,
     current_user: CurrentUser,
-    session: Session
+    session: ClientSession
 ):
     """
     Retrieves the chat history of session_id of current user
@@ -138,7 +138,7 @@ async def get_session_history(
         current_user (CurrentUser): The currently authenticated user
         session: MongoDB session instance
     Returns:
-        GameSessionHistoryResponse: Session history details
+        GameSessionHistoryResponse: ClientSession history details
     """
     session = await crud.get_session(session_id=session_id, session=session)
     
@@ -163,7 +163,7 @@ async def get_session_history(
 async def forfeit(
     session_id: str, 
     current_user: CurrentUser, 
-    session: Session
+    session: ClientSession
 ):
     """
     Forfeits current game session for user
@@ -195,7 +195,7 @@ async def forfeit(
 async def end(
     session_id: str, 
     current_user: CurrentUser, 
-    session: Session
+    session: ClientSession
 ):
     """
     Ends current game session for user
