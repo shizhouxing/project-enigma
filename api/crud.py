@@ -31,7 +31,7 @@ from fastapi import HTTPException, status
 from api.deps import ClientSession
 from api.core.security import get_password_hash, verify_password
 from api.models import User, UserRegister, Game, GameSession
-from bson import ObjectId
+from bson import ObjectId, errors
 import random
 
 
@@ -123,7 +123,7 @@ async def authenticate(*, session : ClientSession, username : str, password : st
 
 # = Game ==============================================================
 
-async def get_game(*, session: ClientSession, game_id: str) -> Game:
+async def get_game_from_id(*, session: ClientSession, id: str) -> Game:
     """
     Fetch Game object by its game_id including associated judge information
     
@@ -138,15 +138,15 @@ async def get_game(*, session: ClientSession, game_id: str) -> Game:
         HTTPException: If game_id is invalid or game is not found
     """
     try:
-        game_id_obj = ObjectId(game_id)
-    except Exception:
+        id = ObjectId(id)
+    except errors.InvalidId:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid game_id format"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not a valid ID"
         )
-    
-    game_data = await session["games"].find_one({
-                "_id": game_id_obj
+
+    game_data = await session.games.find_one({
+                "_id": id
         },)
     
     if not game_data:
@@ -173,8 +173,7 @@ async def get_games(*, session: ClientSession) -> List[Game]:
     """
     try:
         # Convert cursor to list since find() returns a cursor
-        game_data = await session["games"].find({}).to_list(length=None)
-        
+        game_data = await session.games.find({}).to_list(length=None)
         if game_data is None:  # This would be unusual - likely a connection issue
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -345,7 +344,7 @@ async def get_random_model_id(session: ClientSession) -> str:
         str: The ID of the randomly selected model
     """
 
-    models_cursor = session["Models"].find() #TODO: create collection Models for all model data
+    models_cursor = session["models"].find() #TODO: create collection Models for all model data
     models = await models_cursor.to_list(length=None)
 
     if not models:

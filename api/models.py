@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Pydantic Data Models Module
 ==========================
@@ -148,43 +149,76 @@ class Judge(BaseModel):
         json_encoders = {ObjectId: str},
         json_schema_extra = {
             "example": {
-                "id": "507f1f77bcf86cd799439011",
-                "active" : True,
-                "created_at" : datetime.now(UTC),
-                "updated_at" : None,
-                "sampler" : {
-                    "type": "function",
-                    "function": {
-                        "name": "get_bad_word",
-                        "parameters": {},
-	                    "return" : "string"
-                    }
-                },
-                "validator" : {
-                    "type": "function",
-                    "function": {
-                        "name": "get_target_bad_word",
-                        "parameters": {
-                            "source": {
-                            "type": "string",
-                            "description": "user output of injected prompt"
+                    "_id": "6723f3adf927e981a313ccbd0",
+                    "active": True,
+                    "created_at": "2024-10-31T04:23:51.135458",
+                    "updated_at": None,
+                    "sampler": {
+                        "type": "function",
+                        "function": {
+                            "name": "get_bad_word",
+                            "parameters": {},
+                            "return": {
+                                "type": "string"
                             },
-                            "target": {
-                            "type": "string",
-                            "description": "the targeted prompt."
+                            "metadata": {
+                                "is_async": False,
+                                "doc": None,
+                                "required_params": [],
+                                "optional_params": []
                             }
-                        },	  
-                        "return" : "bool"
-                    }      
+                        }
+                    },
+                    "validator": {
+                        "type": "function",
+                        "function": {
+                            "name": "target",
+                            "parameters": {
+                                "source": {
+                                    "type": "string",
+                                    "description": "user output of injected prompt",
+                                    "required": True
+                                },
+                                "target": {
+                                    "type": "string",
+                                    "description": "the targeted prompt.",
+                                    "required": True
+                                },
+                                "regex": {
+                                    "type": "union",
+                                    "types": ["string", "Pattern", "null"],
+                                    "description": "Regular expression pattern to use for matching",
+                                    "required": False,
+                                    "default": None
+                                },
+                                "ignore_case": {
+                                    "type": "boolean",
+                                    "description": "Whether to ignore case when matching",
+                                    "required": False,
+                                    "default": False
+                                }
+                            },
+                            "return": {
+                                "type": "boolean",
+                                "description": "Whether the source matches the target"
+                            },
+                            "metadata": {
+                                "is_async": False,
+                                "doc": "Compare source and target strings using exact match or regex",
+                                "required_params": ["source", "target"],
+                                "optional_params": ["regex", "ignore_case"]
+                            }
+                        }
+                    }
                 }
             }
-        }
     )
 
 class Context(BaseModel):
     """Model for conversation context"""
     role: str = Field(..., description="Role of the message sender (user/model)")
     content: str = Field(..., description="Content of the message")
+
 
 class Game(BaseModel):
     """Game model for Game object"""
@@ -234,73 +268,34 @@ class Game(BaseModel):
         }
     )
 
-    
 
+class GamePublic(BaseModel):
+    title: str
+    author: List[str]
+    description: str
+    gameplay: Optional[str] = None  # Detailed gameplay description
+    objective: Optional[str] = None  # Description of the game's objective
+    image: Union[HttpUrl, str, None]
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    stars: int 
+    metadata: dict
 
-
-class GameSessionCreateResponse(BaseModel):
-    """Response model for creating a new game session"""
-    session_id: ObjectId = Field(default_factory=ObjectId, alias="_id")
-
-    
-
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True,
-        json_encoders = {ObjectId: str},
-        json_schema_extra = {
-            "example": {
-                "session_id": "64b2c8f9b3e3b975c9d3e8d9",
-            }
-        }
-    )
-
-class GameSessionChatResponse(BaseModel):
-    """Response model for chatting in a game session"""
-    output: str
-    outcome: str
-      
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True,
-        json_encoders = {ObjectId: str},
-        json_schema_extra = {
-            "example": {
-                "model_output": "This is the response from the model.",
-                "outcome": "win"
-            }
-        }
-    )
-
-
-class GameSessionHistoryItem(BaseModel):
-    """Model representing a single item in the game session history response."""
-    session_id: str
-    outcome: Literal['win', 'loss', 'forfeit']
-    duration: float
-
-class GameSessionHistoryResponse(BaseModel):
-    """Response model for retrieving game session history."""
-    history: List[GameSessionHistoryItem]
-
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True,
-        json_encoders = {ObjectId: str},
-        json_schema_extra = {
-            "example": {
-                "history": [
-                    {
-                        "session_id": "64b2c8f9b3e3b975c9d3e8d9",
-                        "outcome": "win",
-                        "duration": 300.5
-                    },
-                    {
-                        "session_id": "64b2c8f9b3e3b975c9d3e8da",
-                        "target_phrase": "Hello, how are you?",
-                        "outcome": "loss",
-                        "duration": 150.0
-                    }
-                ]
-            }
-        })
+    @classmethod
+    def from_game(cls, game: Game) -> "GamePublic":
+        """Convert internal game model to public game model"""
+        return cls(
+            title=game.title,
+            author=game.author,
+            description=game.description,
+            gameplay=game.gameplay,
+            objective=game.objective,
+            image=game.image,
+            created_at=game.created_at,
+            updated_at=game.updated_at,
+            stars=game.stars,
+            metadata=game.metadata
+        )
 
 class GameSession(BaseModel):
     """Session model for Session object"""
@@ -308,7 +303,7 @@ class GameSession(BaseModel):
     user_id: ObjectId
     game_id: ObjectId
     judge_id: ObjectId
-    model_id: ObjectId
+    agent_id: ObjectId
     history: Optional[List[Context]] = Field(default_factory=list)
     completed: bool = False
     create_time: datetime = Field(default_factory=datetime.now)
@@ -344,5 +339,70 @@ class GameSession(BaseModel):
             }
         }
     )
+
+class GameSessionCreateResponse(BaseModel):
+    """Response model for creating a new game session"""
+    session_id: ObjectId = Field(default_factory=ObjectId, alias="_id")
+
+    
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_encoders = {ObjectId: str},
+        json_schema_extra = {
+            "example": {
+                "session_id": "64b2c8f9b3e3b975c9d3e8d9",
+            }
+        }
+    )
+
+
+class GameSessionChatResponse(BaseModel):
+    """Response model for chatting in a game session"""
+    output: str
+    outcome: str
+      
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_encoders = {ObjectId: str},
+        json_schema_extra = {
+            "example": {
+                "model_output": "This is the response from the model.",
+                "outcome": "win"
+            }
+        }
+    )
+
+class GameSessionHistoryItem(BaseModel):
+    """Model representing a single item in the game session history response."""
+    session_id: str
+    outcome: Literal['win', 'loss', 'forfeit']
+    duration: Optional[float]
+
+
+class GameSessionHistoryResponse(BaseModel):
+    """Response model for retrieving game session history."""
+    history: List[GameSessionHistoryItem]
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_encoders = {ObjectId: str},
+        json_schema_extra = {
+            "example": {
+                "history": [
+                    {
+                        "session_id": "64b2c8f9b3e3b975c9d3e8d9",
+                        "outcome": "win",
+                        "duration": 300.5
+                    },
+                    {
+                        "session_id": "64b2c8f9b3e3b975c9d3e8da",
+                        "target_phrase": "Hello, how are you?",
+                        "outcome": "loss",
+                        "duration": 150.0
+                    }
+                ]
+            }
+        })
 
 # # NOTE if you need more Models then continue here
