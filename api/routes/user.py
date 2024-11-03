@@ -39,7 +39,6 @@ from api.models import (
     Message
 )
 
-
 router = APIRouter()
 
 @router.post("/signup", response_model=Message)
@@ -77,7 +76,7 @@ async def register_user(session : ClientSession, user_in : UserRegister) -> Mess
 
 @router.post("/logout")
 async def logout(
-    current_user: CurrentUser,
+    user: CurrentUser,
     session: ClientSession
 ) -> Message:
     """
@@ -97,8 +96,6 @@ async def logout(
         HTTPException (500): If an unexpected error occurs during logout
     """
     try:
-
-        user = User.model_validate(current_user)
         await clear_user_token(session, user.id)
         
     except Exception as e:

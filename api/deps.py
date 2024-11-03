@@ -38,7 +38,7 @@ ClientSession = Annotated[AsyncIOMotorDatabase, Depends(get_db)]
 async def get_current_user(
         token: Annotated[str, Depends(oauth2_scheme)],
         session: ClientSession
-    ) -> Any:
+    ) -> User:
     """
     Validate JWT token and return current user.
     
@@ -64,19 +64,17 @@ async def get_current_user(
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[ALGORITHM]
         )
-
-        user_id = payload.get("sub", None)
         
-        if user_id is None:
+        if (user := payload.get("sub", None)) is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        
-        user_id = ObjectId(user_id)
 
-    except (InvalidTokenError, ValidationError, InvalidId):
+        user_id = ObjectId(user)
+
+    except (InvalidTokenError, ValidationError, InvalidId, Exception):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
@@ -99,7 +97,7 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return user
+    return User.model_validate(user)
 
 async def clear_user_token(session: ClientSession, user_id: ObjectId) -> None:
     """

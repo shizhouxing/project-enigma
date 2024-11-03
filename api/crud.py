@@ -23,14 +23,15 @@ Dependencies:
 """
 import re
 
-from typing import Optional, List
+from typing import Optional, List, Union
 from datetime import datetime, UTC
 
 from fastapi import HTTPException, status
 
 from api.deps import ClientSession
 from api.core.security import get_password_hash, verify_password
-from api.models import User, UserRegister, Game, GameSession
+from api.models import User, UserRegister, Game, GameSession, Model
+from api.utils import generate
 from bson import ObjectId, errors
 import random
 
@@ -85,6 +86,7 @@ async def create_user(*, session: ClientSession, user_create: UserRegister) -> U
         user_data["last_login"] = None
         user_data["last_signout"] = None
         user_data["access_token"] = None
+        user_data["icon"] = generate(user_create.username)
 
         result = await session.users.insert_one(user_data)
 
@@ -193,7 +195,11 @@ async def get_games(*, session: ClientSession) -> List[Game]:
 
 # = Session ==============================================================
 
-async def create_game_session(*, session: ClientSession, user_id: str, game_id: str, model_id: str, target: str) -> GameSession:
+async def create_game_session(*, 
+                              session:  ClientSession, 
+                              user_id:  Union[str, ObjectId], 
+                              game_id:  Union[str, ObjectId],
+                              model_id: Union[str, ObjectId]) -> GameSession:
     """
     Creates new game session in database
 
@@ -210,31 +216,46 @@ async def create_game_session(*, session: ClientSession, user_id: str, game_id: 
     """
 
     try:
-        user_id_obj = ObjectId(user_id)
-        game_id_obj = ObjectId(game_id)
-        model_id_obj = ObjectId(model_id)
-    except Exception:
+        user_id = ObjectId(user_id) if (isinstance(user_id, str)) else user_id
+        game_id = ObjectId(game_id) if (isinstance(game_id, str)) else game_id
+        model_id = ObjectId(model_id) if (isinstance(model_id, str)) else model_id
+    
+        game = await session.games.find_one({
+            "_id" : game_id
+        })
+
+        game : Game = Game.model_validate(game)
+
+        new_session = GameSession(
+            user_id=user_id,
+            game_id=game_id,
+            judge_id=ObjectId(game.judge_id),
+            agent_id=model_id,
+            history=[],
+            completed=False,
+            create_time=datetime.now(UTC),
+            complete_time=None,
+            outcome=None,
+            shared=None
+        ).model_dump()
+
+        result = await session["session"].insert_one(new_session) 
+        new_session["session_id"] = str(result.inserted_id)
+    except errors.InvalidId:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid ID format"
         )
-    
-    new_session = GameSession(
-        user_id=user_id_obj,
-        game_id=game_id_obj,
-        model_id=model_id_obj,
-        history=[],
-        completed=False,
-        create_time=datetime.now(UTC),
-        outcome=None,
-        shared=False,
-        target=target,
-        complete_time=None
-    )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Something else went wrong"
+        )
+    return GameSession.model_validate(new_session)
 
-    result = await session["GameSessions"].insert_one(new_session) #TODO: create collection GameSessions for session data
-    new_session["session_id"] = str(result.inserted_id)
-    return GameSession(**new_session)
+
+async def delete_game_session(session: ClientSession, session_id: str) -> None:
+    await session["session"].delete_one({"_id": session_id})
 
 async def get_session(*, session_id : str, session: ClientSession) -> GameSession:
     """
@@ -334,7 +355,22 @@ async def get_sessions_for_user(user_id: str, session: ClientSession) -> List[Ga
 
 # = Model ==============================================================
 
-async def get_random_model_id(session: ClientSession) -> str:
+
+async def get_models(session : ClientSession) -> List[Model]:
+    models = await session.models.find({
+        "available" : True
+    }).to_list()
+
+    if models is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No available models found in the database"
+        )
+    
+    return [Model.model_validate(model) for model in models]
+
+
+async def get_random_model_id(session : ClientSession) -> ObjectId:
     """
     Fetch a random model ID from the Models collection.
 
@@ -344,8 +380,7 @@ async def get_random_model_id(session: ClientSession) -> str:
         str: The ID of the randomly selected model
     """
 
-    models_cursor = session["models"].find() #TODO: create collection Models for all model data
-    models = await models_cursor.to_list(length=None)
+    models : List[Model] = await get_models(session=session)
 
     if not models:
         raise HTTPException(
@@ -354,6 +389,11 @@ async def get_random_model_id(session: ClientSession) -> str:
         )
     
     selected_model = random.choice(models)
-    return str(selected_model["_id"])
+    if (id := selected_model.id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Not a valid model"
+        )
+    return id
 
 # =====================================================================

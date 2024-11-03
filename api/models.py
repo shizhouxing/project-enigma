@@ -30,7 +30,7 @@ Usage:
 """
 
 from datetime import datetime, UTC
-from typing import Optional, Any, Literal, List, Union
+from typing import Optional, Any, Literal, List, Union, Dict
 from pydantic import BaseModel, Field, ConfigDict, field_validator, HttpUrl
 from bson import ObjectId
 
@@ -112,6 +112,7 @@ class User(UserBase):
     created_at: datetime = Field(default_factory=datetime.now)
     last_login : Optional[datetime] = None
     last_signout : Optional[datetime] = None
+    icon : str
 
 
 class UserPublic(BaseModel):
@@ -232,7 +233,7 @@ class Game(BaseModel):
     image: Union[HttpUrl, str, None] = None
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: Optional[datetime] = Field(default_factory=datetime.now)
-    stars: int = Field(...)
+    stars: List[str] = Field(...)
     metadata: dict = Field(...)
     
     model_config = ConfigDict(
@@ -278,7 +279,7 @@ class GamePublic(BaseModel):
     image: Union[HttpUrl, str, None]
     created_at: datetime
     updated_at: Optional[datetime] = None
-    stars: int 
+    stars: int
     metadata: dict
 
     @classmethod
@@ -293,17 +294,17 @@ class GamePublic(BaseModel):
             image=game.image,
             created_at=game.created_at,
             updated_at=game.updated_at,
-            stars=game.stars,
+            stars=len(game.stars),
             metadata=game.metadata
         )
 
 class GameSession(BaseModel):
     """Session model for Session object"""
     id: ObjectId = Field(default_factory=ObjectId, alias="_id")
-    user_id: ObjectId
-    game_id: ObjectId
-    judge_id: ObjectId
-    agent_id: ObjectId
+    user_id: ObjectId = Field(...)
+    game_id: ObjectId = Field(...)
+    judge_id: ObjectId = Field(...)
+    agent_id: ObjectId = Field(...)
     history: Optional[List[Context]] = Field(default_factory=list)
     completed: bool = False
     create_time: datetime = Field(default_factory=datetime.now)
@@ -342,9 +343,7 @@ class GameSession(BaseModel):
 
 class GameSessionCreateResponse(BaseModel):
     """Response model for creating a new game session"""
-    session_id: ObjectId = Field(default_factory=ObjectId, alias="_id")
-
-    
+    session_id: str = Field(...)
 
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
@@ -355,6 +354,12 @@ class GameSessionCreateResponse(BaseModel):
             }
         }
     )
+
+    @classmethod
+    def from_game(cls, game : GameSession):
+        return cls(
+            session_id=str(game.id)
+        )
 
 
 class GameSessionChatResponse(BaseModel):
@@ -376,7 +381,7 @@ class GameSessionChatResponse(BaseModel):
 class GameSessionHistoryItem(BaseModel):
     """Model representing a single item in the game session history response."""
     session_id: str
-    outcome: Literal['win', 'loss', 'forfeit']
+    outcome: Union[Literal['win', 'loss', 'forfeit'], None]
     duration: Optional[float]
 
 
@@ -404,5 +409,38 @@ class GameSessionHistoryResponse(BaseModel):
                 ]
             }
         })
+
+
+class ModelMetadata(BaseModel):
+    endpoint : Optional[str]
+    tools : Optional[List[Dict]]
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_encoders = {ObjectId: str})
+
+class Model(BaseModel):
+    id: ObjectId = Field(default_factory=ObjectId, alias="_id")
+    image : Union[str, HttpUrl]
+    name : str = Field(...)
+    provider : str = Field(...)
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: Optional[datetime] = Field(default_factory=datetime.now)
+    metadata : Union[ModelMetadata, Dict]
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_encoders = {ObjectId: str})
+
+class ModelPublic(BaseModel):
+    name : str = Field(...)
+    provider : str = Field(...)
+    image : Union[str, HttpUrl] = Field(...)
+
+    @classmethod
+    def from_model(cls, model : Model) -> "ModelPublic":
+        return cls(
+            name=model.name,
+            provider=model.provider,
+            image=model.image
+        )
 
 # # NOTE if you need more Models then continue here
