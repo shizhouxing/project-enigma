@@ -32,8 +32,7 @@ class ModelRegistry:
 
     @classmethod
     def register(cls, 
-                configs: List[Union[Dict[str, Any], ModelConfig]], 
-                initialize: bool = True):
+                configs: List[Union[Dict[str, Any], ModelConfig]]):
         """
         Class decorator that registers a model with its configurations.
         

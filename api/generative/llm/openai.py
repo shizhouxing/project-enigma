@@ -21,8 +21,7 @@ except ModuleNotFoundError:
         # init constants
         "base_url" : "https://api.openai.com/v1",
         "api_key"  : os.getenv("OPENAI_API_KEY", None),
-    }],
-    initialize=True
+    }]
 )
 class Client:
     """
