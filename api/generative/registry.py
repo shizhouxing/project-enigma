@@ -104,5 +104,3 @@ class ModelRegistry:
             return list(cls._registry.get(provider, {}).keys())
         return list(cls._configs.keys())
     
-    
-Registry_M = ModelRegistry
