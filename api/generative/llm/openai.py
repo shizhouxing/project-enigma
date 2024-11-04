@@ -16,7 +16,7 @@ except ModuleNotFoundError:
 @ModelRegistry.register(
     configs=[{
         # registry location
-        "name" : "openai",
+        "name" : "gpt-4o",
         "provider" : "openai",
         # init constants
         "base_url" : "https://api.openai.com/v1",
@@ -58,7 +58,6 @@ class Client:
                 **kwargs
             )
 
-    
     
     def generate(self, messages: List[dict], model: OpenAIModel) -> Iterable[ChatCompletionMessageParam]:
         """
