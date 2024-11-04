@@ -1,27 +1,44 @@
-'use client';
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { getAuthToken } from '@/service/auth';
+"use client";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
-export const useCookieCheck = (cookieName: string, interval = 1000) => {
-  const router = useRouter()
-  
+const AuthMonitor = ({ children }: { children: React.ReactNode }) => {
+  const router = useRouter();
+
   useEffect(() => {
-    const checkCookie = async () => {
-      const token = await getAuthToken()
-      if (!token) {
-        console.log('Auth token not found, redirecting to login')
-        router.push('/login')
+    // Function to check if auth token exists
+    const checkAuthToken = () => {
+      const cookies = document.cookie.split(";");
+      const hasAuthToken = cookies.some((cookie) =>
+        cookie.trim().startsWith("auth-token=")
+      );
+
+      if (!hasAuthToken) {
+        router.push("/login");
       }
-    }
+    };
 
-    // Check immediately on mount
-    checkCookie()
-    
-    // Set up periodic checking
-    const intervalId = setInterval(checkCookie, interval)
+    // Check immediately
+    checkAuthToken();
 
-    // Cleanup on unmount
-    return () => clearInterval(intervalId)
-  }, [cookieName, interval, router])
-}
+    // Set up an interval to check periodically
+    const intervalId = setInterval(checkAuthToken, 1000);
+
+    // Listen for cookie changes
+    const cookieListener = () => {
+      checkAuthToken();
+    };
+
+    // Add event listener for cookie changes
+    document.addEventListener("cookie-changed", cookieListener);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener("cookie-changed", cookieListener);
+    };
+  }, [router]);
+
+  return <>{children}</>; // This component doesn't render anything
+};
+
+export default AuthMonitor;

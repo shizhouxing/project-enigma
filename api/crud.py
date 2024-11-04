@@ -23,25 +23,26 @@ Dependencies:
 """
 import re
 
-from typing import Optional, List
+from typing import Optional, List, Union
 from datetime import datetime, UTC
 
 from fastapi import HTTPException, status
 
-from api.deps import Session
+from api.deps import ClientSession
 from api.core.security import get_password_hash, verify_password
-from api.models import User, UserRegister, Game, GameSession
-from bson import ObjectId
+from api.models import User, UserRegister, Game, GameSession, Model
+from api.utils import generate
+from bson import ObjectId, errors
 import random
 
 
 # = User ==============================================================
 
-async def get_user_by_username(*, session: Session, username: str) -> Optional[User]:
+async def get_user_by_username(*, session: ClientSession, username: str) -> Optional[User]:
     """Retrieve user from database by username.
     
     Args:
-        session (Session): Database session
+        session (ClientSession): Database session
         username (str): Username to look up
         
     Returns:
@@ -55,11 +56,11 @@ async def get_user_by_username(*, session: Session, username: str) -> Optional[U
     return None
 
 
-async def create_user(*, session: Session, user_create: UserRegister) -> User:
+async def create_user(*, session: ClientSession, user_create: UserRegister) -> User:
     """Create new user in database.
     
     Args:
-        session (Session): Database session
+        session (ClientSession): Database session
         user_create (UserRegister): User registration data
         
     Returns:
@@ -85,6 +86,7 @@ async def create_user(*, session: Session, user_create: UserRegister) -> User:
         user_data["last_login"] = None
         user_data["last_signout"] = None
         user_data["access_token"] = None
+        user_data["icon"] = generate(user_create.username)
 
         result = await session.users.insert_one(user_data)
 
@@ -99,7 +101,7 @@ async def create_user(*, session: Session, user_create: UserRegister) -> User:
             detail="An unexpected error occurred"
         ) from e
 
-async def authenticate(*, session : Session, username : str, password : str) -> Optional[User]:
+async def authenticate(*, session : ClientSession, username : str, password : str) -> Optional[User]:
     """
     
 
@@ -123,42 +125,81 @@ async def authenticate(*, session : Session, username : str, password : str) -> 
 
 # = Game ==============================================================
 
-async def get_game(*, session: Session, game_id: str) -> Optional[Game]:
+async def get_game_from_id(*, session: ClientSession, id: str) -> Game:
     """
-    Fetch Game object by its game_id
-
+    Fetch Game object by its game_id including associated judge information
+    
     Args:
-        session: MonogDB session instance
+        session: MongoDB session instance
         game_id (str): Unique session ID of GameSession
-
+        
     Returns:
-        Optional[Game]: Game object, if found
+        Game: Game object with judge information, if found
+        
+    Raises:
+        HTTPException: If game_id is invalid or game is not found
     """
-
-    try: 
-        # convert game_id to ObjectId
-        game_id_obj = ObjectId(game_id)
-    except Exception:
+    try:
+        id = ObjectId(id)
+    except errors.InvalidId:
         raise HTTPException(
-            status_code = status.HTTP_400_BAD_REQUEST,
-            detail="Invalid game_id format"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not a valid ID"
         )
 
-    game_data = await session["games"].find_one({"_id": game_id_obj}) #TODO: create collection called "games" for Game objects
+    game_data = await session.games.find_one({
+                "_id": id
+        },)
+    
     if not game_data:
         raise HTTPException(
-            status_code = status.HTTP_404_NOT_FOUND,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Game not found"
         )
     
-    return Game(**game_data)
+
+    return Game.model_validate(game_data)
+
+async def get_games(*, session: ClientSession) -> List[Game]:
+    """
+    Fetch all games from the database
+    
+    Args:
+        session: MongoDB session instance
+        
+    Returns:
+        List[Game]: List of all games
+        
+    Raises:
+        HTTPException: If there's an error retrieving games
+    """
+    try:
+        # Convert cursor to list since find() returns a cursor
+        game_data = await session.games.find({}).to_list(length=None)
+        if game_data is None:  # This would be unusual - likely a connection issue
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Something went wrong when finding the games"
+            )
+            
+        return [Game.model_validate(game) for game in game_data]
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving games: {str(e)}"
+        )
 
 # =====================================================================
 
 
 # = Session ==============================================================
 
-async def create_game_session(*, session: Session, user_id: str, game_id: str, model_id: str, target: str) -> GameSession:
+async def create_game_session(*, 
+                              session:  ClientSession, 
+                              user_id:  Union[str, ObjectId], 
+                              game_id:  Union[str, ObjectId],
+                              model_id: Union[str, ObjectId]) -> GameSession:
     """
     Creates new game session in database
 
@@ -175,33 +216,48 @@ async def create_game_session(*, session: Session, user_id: str, game_id: str, m
     """
 
     try:
-        user_id_obj = ObjectId(user_id)
-        game_id_obj = ObjectId(game_id)
-        model_id_obj = ObjectId(model_id)
-    except Exception:
+        user_id = ObjectId(user_id) if (isinstance(user_id, str)) else user_id
+        game_id = ObjectId(game_id) if (isinstance(game_id, str)) else game_id
+        model_id = ObjectId(model_id) if (isinstance(model_id, str)) else model_id
+    
+        game = await session.games.find_one({
+            "_id" : game_id
+        })
+
+        game : Game = Game.model_validate(game)
+
+        new_session = GameSession(
+            user_id=user_id,
+            game_id=game_id,
+            judge_id=ObjectId(game.judge_id),
+            agent_id=model_id,
+            history=[],
+            completed=False,
+            create_time=datetime.now(UTC),
+            complete_time=None,
+            outcome=None,
+            shared=None
+        ).model_dump()
+
+        result = await session["sessions"].insert_one(new_session) 
+        new_session["session_id"] = str(result.inserted_id)
+    except errors.InvalidId:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid ID format"
         )
-    
-    new_session = GameSession(
-        user_id=user_id_obj,
-        game_id=game_id_obj,
-        model_id=model_id_obj,
-        history=[],
-        completed=False,
-        create_time=datetime.now(UTC),
-        outcome=None,
-        shared=False,
-        target=target,
-        complete_time=None
-    )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Something else went wrong"
+        )
+    return GameSession.model_validate(new_session)
 
-    result = await session["GameSessions"].insert_one(new_session) #TODO: create collection GameSessions for session data
-    new_session["session_id"] = str(result.inserted_id)
-    return GameSession(**new_session)
 
-async def get_session(*, session_id : str, session: Session) -> GameSession:
+async def delete_game_session(session: ClientSession, session_id: str) -> None:
+    await session["session"].delete_one({"_id": session_id})
+
+async def get_session(*, session_id : str, session: ClientSession) -> GameSession:
     """
     Get session object by session_id
 
@@ -219,15 +275,17 @@ async def get_session(*, session_id : str, session: Session) -> GameSession:
             detail="Invalid session_id format"
         )
 
-    session_data = await session["GameSessions"].find_one({"_id": session_id_obj})
+    session_data = await session["sessions"].find_one({"_id": session_id_obj})
+    
     if not session_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found"
         )
+    
     return GameSession(**session_data)
 
-async def update_game_session(*, session: Session, session_id: str, updated_session: GameSession):
+async def update_game_session(*, session: ClientSession, session_id: str, updated_session: GameSession):
     """
     Update an existing GameSession in the database.
 
@@ -244,7 +302,7 @@ async def update_game_session(*, session: Session, session_id: str, updated_sess
             detail="Invalid session_id format"
         )
 
-    result = await session["GameSessions"].update_one(
+    result = await session["sessions"].update_one(
         {"_id": session_id_obj},
         {"$set": {
             "history": updated_session.history,
@@ -263,7 +321,7 @@ async def update_game_session(*, session: Session, session_id: str, updated_sess
 
     return {"message": "Session updated successfully"}
 
-async def get_sessions_for_user(user_id: str, session: Session) -> List[GameSession]:
+async def get_sessions_for_user(user_id: str, session: ClientSession) -> List[GameSession]:
     """
     Get all game sessions for a specific user.
 
@@ -299,7 +357,22 @@ async def get_sessions_for_user(user_id: str, session: Session) -> List[GameSess
 
 # = Model ==============================================================
 
-async def get_random_model_id(session: Session) -> str:
+
+async def get_models(session : ClientSession) -> List[Model]:
+    models = await session.models.find({
+        "available" : True
+    }).to_list()
+
+    if models is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No available models found in the database"
+        )
+    
+    return [Model.model_validate(model) for model in models]
+
+
+async def get_random_model_id(session : ClientSession) -> ObjectId:
     """
     Fetch a random model ID from the Models collection.
 
@@ -309,8 +382,7 @@ async def get_random_model_id(session: Session) -> str:
         str: The ID of the randomly selected model
     """
 
-    models_cursor = session["Models"].find() #TODO: create collection Models for all model data
-    models = await models_cursor.to_list(length=None)
+    models : List[Model] = await get_models(session=session)
 
     if not models:
         raise HTTPException(
@@ -319,6 +391,13 @@ async def get_random_model_id(session: Session) -> str:
         )
     
     selected_model = random.choice(models)
-    return str(selected_model["_id"])
+    if (id := selected_model.id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Not a valid model"
+        )
+    return id
 
+def get_model_client_from_provider(provider : str):
+    ...
 # =====================================================================

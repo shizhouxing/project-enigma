@@ -10,7 +10,7 @@ const api = new ApiClient({
 });
 
 const cookieOptions = {
-  httpOnly: true,
+  httpOnly: false,
   secure: process.env.NODE_ENV === "production",
   sameSite: "lax" as const,
   maxAge: parseInt(process.env.ACCESS_TOKEN_EXPIRE_MINUTES || "345600"),
@@ -135,7 +135,7 @@ export async function validateToken(token : string | undefined) : Promise<boolea
 // Helper function to get the current auth token
 export async function getAuthToken(): Promise<string | null> {
   const cookieStore = await cookies();
-  const authToken = cookieStore.get("auth-token");
+  const authToken = await cookieStore.get("auth-token");
   return authToken?.value || null;
 }
 

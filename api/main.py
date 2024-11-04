@@ -6,11 +6,13 @@ from fastapi.routing import APIRoute
 from starlette.middleware.cors import CORSMiddleware
 
 from api.core.config import settings
-from api.routes import login, user
+from api.routes import login, user, game, models, game_session
 from api.backend_ping_test import db_ping_server
+from api.cron import compute_leaderboard, check_model_tokens_usage
 
 def custom_generate_unique_id(route: APIRoute) -> str:
     return f"{route.tags[0]}-{route.name}"
+
 
 @asynccontextmanager
 async def lifespan(_app : FastAPI):
@@ -18,6 +20,7 @@ async def lifespan(_app : FastAPI):
     # NOTE: before the server starts run these functions
     try :
         await db_ping_server()
+        # foo()
     except Exception as e:
         raise e
     
@@ -45,3 +48,6 @@ if settings.all_cors_origins:
 
 app.include_router(login.router, tags=["login"])
 app.include_router(user.router,  tags=["user"])
+app.include_router(game.router, prefix="/game", tags=["game"])
+app.include_router(game_session.router, prefix="/session", tags=["game", "session"])
+app.include_router(models.router, prefix="/model", tags=["model"])
