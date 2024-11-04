@@ -2,6 +2,7 @@ from __future__ import annotations
 import os
 from typing import List, Any, Iterable, NewType
 
+from api.generative.registry import ModelRegistry
 # Define a new type for OpenAI model identifiers
 OpenAIModel = NewType('OpenAIModel', str)
 
@@ -12,6 +13,17 @@ try:
 except ModuleNotFoundError:
     OPENAI_MODULE_AVAILABLE = False
 
+@ModelRegistry.register(
+    configs=[{
+        # registry location
+        "name" : "openai",
+        "provider" : "openai",
+        # init constants
+        "base_url" : "https://api.openai.com/v1",
+        "api_key"  : os.getenv("OPENAI_API_KEY", None),
+    }],
+    initialize=True
+)
 class Client:
     """
     A client interface for interacting with the OpenAI API to generate chat completions.
@@ -49,7 +61,7 @@ class Client:
 
     
     
-    def generate(self, messages: List[dict], model: OpenAIModel, stream: bool = True) -> Iterable[ChatCompletionMessageParam]:
+    def generate(self, messages: List[dict], model: OpenAIModel) -> Iterable[ChatCompletionMessageParam]:
         """
         Generates a stream of chat completions from the OpenAI API using the specified model.
         
@@ -77,16 +89,16 @@ class Client:
         response = self._client.chat.completions.create(
             model=model,
             messages=messages,
-            stream=stream
+            stream=True
         )
         
         # Yield each chunk of response content from the API stream
-        if stream:
-            for chunk in response:
-                if chunk.choices.delta.content is not None:
-                    yield chunk.choices[0].delta.content
-        else:
-            yield response.choices[0].message.content
+        # if stream:
+        for chunk in response:
+            if chunk.choices.delta.content is not None:
+                yield chunk.choices[0].delta.content
+        # else:
+            # yield response.choices[0].message.content
     
     def __call__(self, *args: Any, **kwds: Any) -> Iterable[ChatCompletionMessageParam]:
         """
@@ -100,3 +112,4 @@ class Client:
             Iterable[str]: Stream of response content.
         """
         return self.generate(*args, **kwds)
+    

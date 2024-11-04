@@ -45,9 +45,7 @@ class Client:
 
     def generate(self, 
                  message: List[Any], 
-                 model: AnthropicModel, 
-                 stream: bool = True,
-                 max_tokens : int = 1_000) -> Iterable:
+                 model: AnthropicModel) -> Iterable:
         """
         Generates a stream of chat completions from the Anthropic API using the specified model.
 
@@ -76,8 +74,8 @@ class Client:
         stream = self.client.messages.create(
             messages=message,
             model=model,
-            max_tokens=max_tokens,
-            stream=stream,
+            max_tokens=1_000,
+            stream=True,
         )
 
         # Yield each chunk of response content from the API stream
