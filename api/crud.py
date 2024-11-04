@@ -239,7 +239,7 @@ async def create_game_session(*,
             shared=None
         ).model_dump()
 
-        result = await session["session"].insert_one(new_session) 
+        result = await session["sessions"].insert_one(new_session) 
         new_session["session_id"] = str(result.inserted_id)
     except errors.InvalidId:
         raise HTTPException(
@@ -275,12 +275,14 @@ async def get_session(*, session_id : str, session: ClientSession) -> GameSessio
             detail="Invalid session_id format"
         )
 
-    session_data = await session["GameSessions"].find_one({"_id": session_id_obj})
+    session_data = await session["sessions"].find_one({"_id": session_id_obj})
+    
     if not session_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found"
         )
+    
     return GameSession(**session_data)
 
 async def update_game_session(*, session: ClientSession, session_id: str, updated_session: GameSession):
@@ -300,7 +302,7 @@ async def update_game_session(*, session: ClientSession, session_id: str, update
             detail="Invalid session_id format"
         )
 
-    result = await session["GameSessions"].update_one(
+    result = await session["sessions"].update_one(
         {"_id": session_id_obj},
         {"$set": {
             "history": updated_session.history,
@@ -396,4 +398,6 @@ async def get_random_model_id(session : ClientSession) -> ObjectId:
         )
     return id
 
+def get_model_client_from_provider(provider : str):
+    ...
 # =====================================================================
