@@ -59,7 +59,11 @@ class Client:
             )
 
     
-    def generate(self, messages: List[dict], model: OpenAIModel) -> Iterable[ChatCompletionMessageParam]:
+    def generate(self, 
+                 messages: List[dict], 
+                 model: OpenAIModel, 
+                 stream : bool=True,
+                 **kwargs) -> Iterable[ChatCompletionMessageParam]:
         """
         Generates a stream of chat completions from the OpenAI API using the specified model.
         
@@ -87,16 +91,17 @@ class Client:
         response = self._client.chat.completions.create(
             model=model,
             messages=messages,
-            stream=True
+            stream=stream,
+            **kwargs
         )
         
         # Yield each chunk of response content from the API stream
-        # if stream:
-        for chunk in response:
-            if chunk.choices.delta.content is not None:
-                yield chunk.choices[0].delta.content
-        # else:
-            # yield response.choices[0].message.content
+        if stream:
+            for chunk in response:
+                if (delta := chunk.choices[0].delta.content) is not None:
+                    yield delta
+        else:
+            yield response.choices[0].message.content
     
     def __call__(self, *args: Any, **kwds: Any) -> Iterable[ChatCompletionMessageParam]:
         """
