@@ -2,7 +2,7 @@ from __future__ import annotations
 import os
 from typing import List, Any, Iterable, NewType
 
-from api.generative.registry import ModelRegistry
+from api.generative._registry import ModelRegistry
 # Define a new type for OpenAI model identifiers
 OpenAIModel = NewType('OpenAIModel', str)
 
