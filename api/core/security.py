@@ -44,7 +44,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def verify_expired(token: str | None) -> bool:
+def verify_expired(token: str | None, _id : str = None) -> bool:
     """
     Verify if a JWT token has expired by checking its expiration timestamp.
     

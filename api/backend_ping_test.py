@@ -5,8 +5,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import time
 
 from api.core.config import settings
-
-logger = logging.getLogger('uvicorn.error')
+from api.utils import logger
 
 async def db_ping_server() -> Coroutine[Any, Any, None]:
     """

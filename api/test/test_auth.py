@@ -13,8 +13,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 
 from api.main import app
 from api.core.config import settings
-from api.deps import get_db
-from api.models import UserRegister
 
 client = TestClient(app)
 
@@ -59,6 +57,7 @@ async def test_signup_username():
     client_db = AsyncIOMotorClient(settings.MONGODB_DATABASE_URI)
     db = client_db[settings.MONGODB_NAME]
     db.users.delete_one({"username": username})
+    client_db.close()
 
 @pytest.mark.asyncio
 async def test_login_username():
