@@ -163,14 +163,18 @@ class FunctionDecorator:
     
     def __call__(self, func: Callable):
         """When the decorator is applied, register function"""
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
         func_name = func.__name__
 
         if self.function_type == 'sampler':
-            registry.register_sampler(func_name, func)
+            registry.register_sampler(func_name, wrapper)
         elif self.function_type == 'validator':
-            registry.register_validator(func_name, func)
+            registry.register_validator(func_name, wrapper)
         
-        return func
+        return wrapper
 
 def _call(fn: str, type: Literal['validator', 'sampler']) -> Callable:
     """Retrieve a callable function by name from the FunctionRegistry"""
