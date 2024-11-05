@@ -1,5 +1,6 @@
 import sys
 from typing import Callable, Dict, Any, Union, NewType, Literal, get_type_hints
+from functools import wraps
 import re
 import asyncio
 import inspect
@@ -108,22 +109,79 @@ class FunctionValidator:
         
         return result
 
-def _call(fn: str) -> Callable:
-    """Retrieve a callable function by name from the current module."""
-    if fn == _call.__name__:
-        raise Exception("Cannot call the _call function itself.")
+class FunctionRegistry:
+    """Class to hold the samplers and validators registry"""
+
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(FunctionRegistry, cls).__new__(cls)
+        return cls._instance
+
+    def __init__(self):
+        """Initialize samplers and validators once"""
+        if not hasattr(self, 'samplers'):
+            self.samplers = {}
+        if not hasattr(self, 'validators'):
+            self.validators = {}
+
+    def register_sampler(self, name: str, func: Callable) -> None:
+        """Register a sampler function"""
+        if name in self.samplers:
+            raise ValueError("Name already registered")
+        self.samplers[name] = func
     
+    def register_validator(self, name: str, func: Callable) -> None:
+        """Register a validator function"""
+        if name in self.validators:
+            raise ValueError("Name already registered")
+        self.validators[name] = func
+    
+    def get_sampler(self, name: str) -> Callable:
+        """Retrieve a sampler function by name"""
+        if name not in self.samplers:
+            raise ValueError("Sampler not found")
+        return self.samplers[name]
+    
+    def get_validator(self, name: str) -> Callable:
+        """Retrieve a validator function by name"""
+        if name not in self.validators:
+            raise ValueError("Validator not found")
+        return self.validators[name]
+    
+registry = FunctionRegistry()
+
+class FunctionDecorator:
+    """Class decorator to register function in FunctionRegistry"""
+
+    def __init__(self, function_type: str):
+        """Initialize with the type: 'sampler' or 'validator'"""
+        if function_type not in ('sampler', 'validator'):
+            raise ValueError("Invalid function type")
+        self.function_type = function_type
+    
+    def __call__(self, func: Callable):
+        """When the decorator is applied, register function"""
+        func_name = func.__name__
+
+        if self.function_type == 'sampler':
+            registry.register_sampler(func_name, func)
+        elif self.function_type == 'validator':
+            registry.register_validator(func_name, func)
+        
+        return func
+
+def _call(fn: str, type: Literal['validator', 'sampler']) -> Callable:
+    """Retrieve a callable function by name from the FunctionRegistry"""
     if fn.startswith("_"):
         raise ValueError("Cannot reference a private function.")
     
-    if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", fn):
-        raise ValueError("Invalid function name format.")
-    
-    current_module = sys.modules[__name__]
-    func = getattr(current_module, fn, None)
-    
-    if callable(func) and getattr(func, "__module__", None) == __name__:
-        return func
+    # Use registry to retrieve the function
+    if type == 'sampler':
+        return registry.get_sampler(fn)
+    elif type == 'validator':
+        return registry.get_validator(fn)
     
     raise ValueError(f"Function '{fn}' is either not found or not accessible.")
 
@@ -142,7 +200,7 @@ async def function_call(
         await FunctionValidator.validate_against_db(session, fn, kwargs, type)
         
         # Get the callable function
-        function = _call(fn)
+        function = _call(fn, type)
         
         # Validate parameters against actual function
         FunctionValidator.validate_parameters(function, kwargs)
@@ -174,7 +232,8 @@ async def function_call(
             detail=f"Something went wrong on the server side: {str(e)}"
         )
     
-    
+
+@FunctionDecorator(function_type='validator')
 def target(*, source: str, target: str, regex: Union[str, re.Pattern, None] = None, ignore_case: bool = False):
     if regex is not None:
         if isinstance(regex, str):
@@ -185,7 +244,8 @@ def target(*, source: str, target: str, regex: Union[str, re.Pattern, None] = No
         return result
     else:
         return source.lower() == target.lower() if ignore_case else source == target
-    
+
+@FunctionDecorator(function_type='sampler')
 def get_bad_word():
     return "go fuck your self"
 
