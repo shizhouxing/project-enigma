@@ -441,9 +441,6 @@ class GameSessionHistoryResponse(BaseModel):
             }
         })
 
-class ModelQuery(BaseModel):
-    session_id : str
-    prompt : str
 
 
 

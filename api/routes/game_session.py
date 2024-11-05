@@ -9,13 +9,13 @@ from sse_starlette.sse import EventSourceResponse
 from datetime import datetime, UTC
 from api import crud
 from api.deps import Database, CurrentUser
-from api.models import GameSessionCreateResponse, ModelQuery, GameSessionPublic, GameSessionHistoryItem, Message
+from api.models import GameSessionCreateResponse, GameSessionPublic, GameSessionHistoryItem, Message
 from api.generative._registry import ModelRegistry
 from api.judge import registry
 
 router = APIRouter()
 
-@router.post("/create")
+@router.post("/create-chat")
 async def create_session(
     game_id: str, 
     user: CurrentUser, 
@@ -85,18 +85,18 @@ async def deleted_session(
     )
 
 
-@router.post("/generate")
+@router.post("/{session_id}/completion")
 async def chat(
-    query : ModelQuery,
+    session_id : str,
+    prompt : str,
     current_user: CurrentUser, 
     session: Database
 ) -> GameSessionPublic:
     """
-    Handle chat messages from the user.
+    Handle prompt from the user.
 
     Args:
         session_id (str): ID of the current game session
-        user_input (str): The message sent by the user
         current_user (CurrentUser): The currently authenticated user
         session: MongoDB session instance
 
@@ -104,11 +104,10 @@ async def chat(
         GameSessionChatResponse: Response model with model_output, outcome
     """
     try:
-        current_session : GameSessionPublic = await crud.get_session(session_id=query.session_id, 
+        current_session : GameSessionPublic = await crud.get_session(session_id=session_id, 
                                                                      user_id=current_user.id,
                                                                      session=session)
 
-        print(current_session.user_id, current_user.id, current_session.completed)
         if str(current_session.user_id) != str(current_user.id) or current_session.completed:
             raise HTTPException(
                 status_code = status.HTTP_403_FORBIDDEN,
@@ -116,7 +115,7 @@ async def chat(
             )
         
 
-        current_session.history.append({"role": "user", "content": query.prompt})
+        current_session.history.append({"role": "user", "content": prompt})
         model = current_session.model.get("name", None)
         metadata = current_session.metadata
         target = registry.get_validator(current_session.judge["validator"]["function"]\
@@ -234,7 +233,7 @@ async def get_session_history(
 
     return response_data
 
-@router.post("/forfeit")
+@router.post("/{session_id}/forfeit")
 async def forfeit(
     session_id: str, 
     current_user: CurrentUser, 
@@ -276,7 +275,7 @@ async def forfeit(
         data={"outcome": current_session.outcome}
         )
 
-@router.post("/end")
+@router.post("/{session_id}/end")
 async def end(
     session_id: str, 
     current_user: CurrentUser, 
