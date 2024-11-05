@@ -25,7 +25,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from api import crud
-from api.deps import CurrentUser, get_db
+from api.deps import CurrentUser, Database
 from api.core import security
 from api.core.security import verify_expired
 from api.core.config import settings
@@ -38,7 +38,7 @@ router = APIRouter()
 @router.post("/login/access-token", response_description="login authorization", response_model=Token)
 async def login_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-    session: Any = Depends(get_db)
+    session: Database
 ) -> Token:
     """
     OAuth2 compatible token login, get an access token for future requests

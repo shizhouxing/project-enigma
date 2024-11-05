@@ -28,9 +28,9 @@ from datetime import datetime, UTC
 
 from fastapi import HTTPException, status
 
-from api.deps import ClientSession
+from api.deps import Database
 from api.core.security import get_password_hash, verify_password
-from api.models import User, UserRegister, Game, GameSession, Model
+from api.models import User, UserRegister, Game, GameSession, Model, GameSessionPublic
 from api.utils import generate
 from bson import ObjectId, errors
 import random
@@ -38,11 +38,11 @@ import random
 
 # = User ==============================================================
 
-async def get_user_by_username(*, session: ClientSession, username: str) -> Optional[User]:
+async def get_user_by_username(*, session: Database, username: str) -> Optional[User]:
     """Retrieve user from database by username.
     
     Args:
-        session (ClientSession): Database session
+        session (Database): Database session
         username (str): Username to look up
         
     Returns:
@@ -56,11 +56,11 @@ async def get_user_by_username(*, session: ClientSession, username: str) -> Opti
     return None
 
 
-async def create_user(*, session: ClientSession, user_create: UserRegister) -> User:
+async def create_user(*, session: Database, user_create: UserRegister) -> User:
     """Create new user in database.
     
     Args:
-        session (ClientSession): Database session
+        session (Database): Database session
         user_create (UserRegister): User registration data
         
     Returns:
@@ -101,7 +101,7 @@ async def create_user(*, session: ClientSession, user_create: UserRegister) -> U
             detail="An unexpected error occurred"
         ) from e
 
-async def authenticate(*, session : ClientSession, username : str, password : str) -> Optional[User]:
+async def authenticate(*, session : Database, username : str, password : str) -> Optional[User]:
     """
     
 
@@ -125,7 +125,7 @@ async def authenticate(*, session : ClientSession, username : str, password : st
 
 # = Game ==============================================================
 
-async def get_game_from_id(*, session: ClientSession, id: str) -> Game:
+async def get_game_from_id(*, session: Database, id: str) -> Game:
     """
     Fetch Game object by its game_id including associated judge information
     
@@ -160,7 +160,7 @@ async def get_game_from_id(*, session: ClientSession, id: str) -> Game:
 
     return Game.model_validate(game_data)
 
-async def get_games(*, session: ClientSession) -> List[Game]:
+async def get_games(*, session: Database) -> List[Game]:
     """
     Fetch all games from the database
     
@@ -196,7 +196,7 @@ async def get_games(*, session: ClientSession) -> List[Game]:
 # = Session ==============================================================
 
 async def create_game_session(*, 
-                              session:  ClientSession, 
+                              session:  Database, 
                               user_id:  Union[str, ObjectId], 
                               game_id:  Union[str, ObjectId],
                               model_id: Union[str, ObjectId]) -> GameSession:
@@ -254,10 +254,13 @@ async def create_game_session(*,
     return GameSession.model_validate(new_session)
 
 
-async def delete_game_session(session: ClientSession, session_id: str) -> None:
+async def delete_game_session(session: Database, session_id: str) -> None:
     await session["session"].delete_one({"_id": session_id})
 
-async def get_session(*, session_id : str, session: ClientSession) -> GameSession:
+async def get_session(*, 
+                      session_id : str, 
+                      user_id : Optional[ObjectId], 
+                      session: Database) -> GameSessionPublic:
     """
     Get session object by session_id
 
@@ -267,15 +270,120 @@ async def get_session(*, session_id : str, session: ClientSession) -> GameSessio
     Returns:
         GameSession: The GameSession object, if found
     """
+    query = {}
     try: 
-        session_id_obj = ObjectId(session_id)
+        query["_id"] = ObjectId(session_id)
+        if user_id is not None:
+            query["user_id"] = user_id
+        else:
+            query["completed"] = True
+            query["shared"] = True
+
     except Exception:
         raise HTTPException(
             status_code = status.HTTP_400_BAD_REQUEST, 
             detail="Invalid session_id format"
         )
 
-    session_data = await session["sessions"].find_one({"_id": session_id_obj})
+
+    session_data = session["sessions"].aggregate(
+        [{
+                "$match": query
+            },
+            {
+                "$lookup": {
+                    "from": "collection_for_id",
+                    "localField": "id",
+                    "foreignField": "_id",
+                    "as": "referenced_id"
+                }
+            },
+            {
+                "$lookup": {
+                    "from": "users",
+                    "localField": "user_id",
+                    "foreignField": "_id",
+                    "as": "user"
+                }
+            },
+            {
+                "$lookup": {
+                    "from": "games",
+                    "localField": "game_id",
+                    "foreignField": "_id",
+                    "as": "game"
+                }
+            },
+            {
+                "$lookup": {
+                    "from": "judges",
+                    "localField": "judge_id",
+                    "foreignField": "_id",
+                    "as": "judge"
+                }
+            },
+            {
+                "$lookup": {
+                    "from": "models",
+                    "localField": "agent_id",
+                    "foreignField": "_id",
+                    "as": "model"
+                }
+            },
+            {
+                "$unwind": {
+                    "path": "$referenced_id",
+                    "preserveNullAndEmptyArrays": True
+                }
+            },
+            {
+                "$unwind": {
+                    "path": "$user",
+                    "preserveNullAndEmptyArrays": True
+                }
+            },
+            {
+                "$unwind": {
+                    "path": "$game",
+                    "preserveNullAndEmptyArrays": True
+                }
+            },
+            {
+                "$unwind": {
+                    "path": "$judge",
+                    "preserveNullAndEmptyArrays": True
+                }
+            },
+            {
+                "$unwind": {
+                    "path": "$model",
+                    "preserveNullAndEmptyArrays": True
+                }
+            },{
+                "$project": {
+                     "history": 1,
+                     "user_id" : 1,
+                      "completed": 1,
+                      "outcome": 1,
+                      "complete_time" : 1,
+                      "user" : {
+                          "username" : 1
+                      },
+                      "model" : {
+                          "name" : 1,
+                          "provider" : 1,
+                          "metadata" : 1
+                      },
+                      "judge" : {
+                          "sampler" : 1,
+                          "validator" : 1
+                      }
+                },   
+            },
+            {
+                "$limit": 1  # This ensures we only get one document]
+            }]
+    )
     
     if not session_data:
         raise HTTPException(
@@ -283,9 +391,15 @@ async def get_session(*, session_id : str, session: ClientSession) -> GameSessio
             detail="Session not found"
         )
     
-    return GameSession(**session_data)
+    game_session = await session_data.next()
 
-async def update_game_session(*, session: ClientSession, session_id: str, updated_session: GameSession):
+    return GameSessionPublic.from_dict(game_session)
+
+async def update_game_session(*, 
+                              session : Database, 
+                              session_id: str,
+                              updated_session: GameSession,
+                              updates : List[str]):
     """
     Update an existing GameSession in the database.
 
@@ -304,13 +418,7 @@ async def update_game_session(*, session: ClientSession, session_id: str, update
 
     result = await session["sessions"].update_one(
         {"_id": session_id_obj},
-        {"$set": {
-            "history": updated_session.history,
-            "completed": updated_session.completed,
-            "outcome": updated_session.outcome,
-            "shared": updated_session.shared,
-            "complete_time": updated_session.complete_time
-        }}
+        {"$set": { name : getattr(updated_session, name) for name in updates }}
     )
 
     if result.modified_count == 0:
@@ -321,7 +429,8 @@ async def update_game_session(*, session: ClientSession, session_id: str, update
 
     return {"message": "Session updated successfully"}
 
-async def get_sessions_for_user(user_id: str, session: ClientSession) -> List[GameSession]:
+async def get_sessions_for_user(user_id: str, 
+                                session: Database) -> List[GameSession]:
     """
     Get all game sessions for a specific user.
 
@@ -358,7 +467,7 @@ async def get_sessions_for_user(user_id: str, session: ClientSession) -> List[Ga
 # = Model ==============================================================
 
 
-async def get_models(session : ClientSession) -> List[Model]:
+async def get_models(session : Database) -> List[Model]:
     models = await session.models.find({
         "available" : True
     }).to_list()
@@ -372,7 +481,7 @@ async def get_models(session : ClientSession) -> List[Model]:
     return [Model.model_validate(model) for model in models]
 
 
-async def get_random_model_id(session : ClientSession) -> ObjectId:
+async def get_random_model_id(session : Database) -> ObjectId:
     """
     Fetch a random model ID from the Models collection.
 

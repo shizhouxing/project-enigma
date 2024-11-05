@@ -215,12 +215,6 @@ class Judge(BaseModel):
             }
     )
 
-class Context(BaseModel):
-    """Model for conversation context"""
-    role: str = Field(..., description="Role of the message sender (user/model)")
-    content: str = Field(..., description="Content of the message")
-
-
 class Game(BaseModel):
     """Game model for Game object"""
     id: ObjectId = Field(default_factory=ObjectId, alias="_id")
@@ -298,14 +292,15 @@ class GamePublic(BaseModel):
             metadata=game.metadata
         )
 
+
+
 class GameSession(BaseModel):
     """Session model for Session object"""
-    id: ObjectId = Field(default_factory=ObjectId, alias="_id")
     user_id: ObjectId = Field(...)
     game_id: ObjectId = Field(...)
     judge_id: ObjectId = Field(...)
     agent_id: ObjectId = Field(...)
-    history: Optional[List[Context]] = Field(default_factory=list)
+    history: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
     completed: bool = False
     create_time: datetime = Field(default_factory=datetime.now)
     complete_time: Optional[datetime] = None
@@ -324,7 +319,7 @@ class GameSession(BaseModel):
                 "model_id": "507f1f77bcf86cd799439015",
                 "history": [
                     {
-                        "role": "model",
+                        "role": "assistant",
                         "content": "Hello, welcome to the game!"
                     },
                     {
@@ -361,6 +356,33 @@ class GameSessionCreateResponse(BaseModel):
             session_id=str(game.id)
         )
 
+
+GameSession
+
+class GameSessionPublic(BaseModel):
+    id : Optional[str]
+    user_id : Optional[str]
+    history : List[Dict[str, Any]] 
+    completed: bool = False
+    complete_time: Optional[datetime] = None
+    outcome: Optional[str] = None
+    user : Dict[str, Any]
+    model : Dict[str, Any]
+    judge : Dict[str, Any]
+    
+    @classmethod
+    def from_dict(cls, obj : Dict[str, Any]):
+        return cls(
+            id=str(obj.get("_id", None)),
+            user_id=str(obj.get("user_id", None)),
+            history=obj.get("history"),
+            completed=obj.get("completed"),
+            complete_time=obj.get("complete_time"),
+            outcome=obj.get("outcome"),
+            user=obj.get("user"),
+            model=obj.get("model"),
+            judge=obj.get("judge"),
+        )
 
 class GameSessionChatResponse(BaseModel):
     """Response model for chatting in a game session"""
@@ -409,6 +431,11 @@ class GameSessionHistoryResponse(BaseModel):
                 ]
             }
         })
+
+class ModelQuery(BaseModel):
+    session_id : str
+    prompt : str
+
 
 
 class ModelMetadata(BaseModel):

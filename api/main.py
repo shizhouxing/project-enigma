@@ -11,7 +11,10 @@ from api.backend_ping_test import db_ping_server
 from api.cron import compute_leaderboard, check_model_tokens_usage
 
 def custom_generate_unique_id(route: APIRoute) -> str:
-    return f"{route.tags[0]}-{route.name}"
+    if len(route.tags) > 0:
+        return f"{route.tags[0]}-{route.name}"
+    else:
+        return f'{route.name}'
 
 
 @asynccontextmanager
@@ -46,8 +49,14 @@ if settings.all_cors_origins:
         allow_headers=["*"],
     )
 
+
 app.include_router(login.router, tags=["login"])
 app.include_router(user.router,  tags=["user"])
 app.include_router(game.router, prefix="/game", tags=["game"])
 app.include_router(game_session.router, prefix="/session", tags=["game", "session"])
 app.include_router(models.router, prefix="/model", tags=["model"])
+
+
+@app.get("/health/")
+def health_check() -> dict:
+    return { "status" : "Server is function and working" }
