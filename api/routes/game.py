@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import List, Any, Annotated
 
 from fastapi import APIRouter, HTTPException, Query
-from api.deps import ClientSession
+from api.deps import Database
 from api.crud import get_game_from_id, get_games
 from api.models import GamePublic
 
@@ -10,14 +10,14 @@ from api.models import GamePublic
 router = APIRouter()
 
 @router.get("/{id}")
-async def game_from_id(session : ClientSession, id : str) -> Any:
+async def game_from_id(session : Database, id : str) -> Any:
     response = await get_game_from_id(session=session, id=id)
     return GamePublic.from_game(response)
 
 
 @router.get("/")
 async def get_all_games(
-    session: ClientSession
+    session: Database
 ) -> List[GamePublic]:
     """
     Get all games and convert them to GamePublic model.
