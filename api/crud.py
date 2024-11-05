@@ -31,6 +31,7 @@ from fastapi import HTTPException, status
 from api.deps import Database
 from api.core.security import get_password_hash, verify_password
 from api.models import User, UserRegister, Game, GameSession, Model, GameSessionPublic
+from api.judge import registry
 from api.utils import generate
 from bson import ObjectId, errors
 import random
@@ -220,33 +221,79 @@ async def create_game_session(*,
         game_id = ObjectId(game_id) if (isinstance(game_id, str)) else game_id
         model_id = ObjectId(model_id) if (isinstance(model_id, str)) else model_id
     
-        game = await session.games.find_one({
-            "_id" : game_id
-        })
+        game = await session.games.aggregate([{
+            "$match" : {"_id" : game_id} 
+        },
+        {
+            "$lookup": {
+                "from": "judges",
+                "localField": "judge_id",
+                "foreignField": "_id",
+                "as": "judge"
+            }
+        },
+        {
+                "$unwind": {
+                    "path": "$judge",
+                    "preserveNullAndEmptyArrays": True
+                }
+        },{
+                
+            "$project": {
+                "metadata" : 1,
+                "judge_id" : 1,
+                "session_description" : 1,
+                "judge" : {
+                        "sampler" : 1,
+                    }
+                },   
+            },
+            {
+                "$limit": 1  # This ensures we only get one document]
+            }]).to_list(length=None)
 
-        game : Game = Game.model_validate(game)
+        game = game[0]
+        if (sample_fn := game["judge"].get("sampler", {}).get("function", None)) is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Missing sampler function"
+            )
+
+        kwargs = registry.get_sampler(sample_fn["name"])()
+
+        description=None
+        if game["metadata"].get("game_rules", {}).get("deterministic", False):
+            description = f"{game["session_description"]} {kwargs.get("target", "")}"
+        else:
+            description = f"{game["session_description"]}"
+
 
         new_session = GameSession(
             user_id=user_id,
             game_id=game_id,
-            judge_id=ObjectId(game.judge_id),
+            judge_id=game.get("judge_id", None),
             agent_id=model_id,
+            description=description,
             history=[],
             completed=False,
             create_time=datetime.now(UTC),
-            complete_time=None,
+            completed_time=None,
             outcome=None,
-            shared=None
+            shared=None,
+            metadata={ "kwargs" : kwargs } |  game["metadata"]
         ).model_dump()
 
-        result = await session["sessions"].insert_one(new_session) 
+        del new_session["id"]
+        result = await session.sessions.insert_one(new_session) 
         new_session["session_id"] = str(result.inserted_id)
+
     except errors.InvalidId:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid ID format"
         )
     except Exception as e:
+        print(e)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Something else went wrong"
@@ -365,7 +412,7 @@ async def get_session(*,
                      "user_id" : 1,
                       "completed": 1,
                       "outcome": 1,
-                      "complete_time" : 1,
+                      "completed_time" : 1,
                       "user" : {
                           "username" : 1
                       },
@@ -377,7 +424,8 @@ async def get_session(*,
                       "judge" : {
                           "sampler" : 1,
                           "validator" : 1
-                      }
+                      },
+                      "metadata" : 1
                 },   
             },
             {

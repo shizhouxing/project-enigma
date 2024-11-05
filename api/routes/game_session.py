@@ -1,5 +1,5 @@
 import json
-
+from bson import ObjectId
 from fastapi import APIRouter, \
                     Depends, \
                     HTTPException,\
@@ -11,6 +11,7 @@ from api import crud
 from api.deps import Database, CurrentUser
 from api.models import GameSessionCreateResponse, ModelQuery, GameSessionPublic, GameSessionHistoryItem, Message
 from api.generative._registry import ModelRegistry
+from api.judge import registry
 
 router = APIRouter()
 
@@ -41,8 +42,6 @@ async def create_session(
         )
 
     model_id = await crud.get_random_model_id(session=session)
-    
-    print(user)
 
     new_session = await crud.create_game_session(
         session=session,
@@ -53,19 +52,37 @@ async def create_session(
 
     return GameSessionCreateResponse.from_game(new_session)
 
-@router.post("/")
-async def session_(
+
+@router.delete("/{session_id}")
+async def deleted_session(
     session_id : str,
-    current_user: CurrentUser, 
+    user: CurrentUser, 
     session: Database
-) -> GameSessionPublic:
+) -> Message:
+    """NOTE: this is just for testing"""
 
-    current_session = await crud.get_session(session_id=session_id, 
-                                             user_id = current_user.id,
-                                             session=session)
-    return current_session
+    try:
+        response = await session["sessions"].delete_one({
+            "_id" : ObjectId(session_id),
+            "user_id" : user.id
+        })
 
-
+        if response.deleted_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Session {session_id} not found"
+            )
+        
+    except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=400,
+            detail="Session was not deleted for what ever reason"
+        )
+    return Message(
+        status="success",
+        message=f"{session_id} successfully deleted"
+    )
 
 
 @router.post("/generate")
@@ -101,24 +118,32 @@ async def chat(
 
         current_session.history.append({"role": "user", "content": query.prompt})
         model = current_session.model.get("name", None)
+        metadata = current_session.metadata
+        target = registry.get_validator(current_session.judge["validator"]["function"]\
+                                        .get("name", None))
+        
+
+        
         client = ModelRegistry.get_client(
                 model
             )
+
+        print(target, metadata)
         
         async def model_generate_generator():
             # NOTE: need to handle it when something goes wrong
             updates = ["history"]
             calmative_token = ""
             for token in client.generate(current_session.history, model):
-                calmative_token+=token
+                calmative_token += token
                 
-                # if  not current_session.outcome and \
-                #     current_session.outcome := target(...):
-                #   current_session.completed = True
-                #   current_session.completed_time = datetime.now(UTC) 
-                #   update = update +\
-                #           ["completed","outcome","complete_time"]
-                #   
+                if not current_session.outcome and\
+                   target(**{"source" : calmative_token } | metadata.get("kwargs", {}) ):
+                    current_session.outcome = "win"
+                    current_session.completed = True
+                    current_session.completed_time = datetime.now(UTC) 
+                    updates = updates +\
+                          ["completed","outcome","completed_time"]
                 
                 yield {
                         "event": "message_token",
@@ -126,7 +151,6 @@ async def chat(
                         "data": json.dumps({"content" : token}),
                     }
                 
-
             current_session.history.append({"role": "assistant", "content": calmative_token})
             await crud.update_game_session(session_id=query.session_id, 
                                            updated_session=current_session,
@@ -169,7 +193,7 @@ async def get_history(
         GameSessionHistoryItem(
             session_id=str(session.id),
             outcome=session.outcome,
-            duration=(session.complete_time - session.create_time).total_seconds()
+            duration=(session.completed_time - session.create_time).total_seconds()
         )
         for session in sessions
     ]

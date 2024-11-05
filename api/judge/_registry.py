@@ -1,12 +1,7 @@
-import sys
 from typing import Callable, Dict, Any, Union, NewType, Literal, get_type_hints
 from functools import wraps
-import re
-import asyncio
 import inspect
-from fastapi import APIRouter, HTTPException, status, Depends
-from api.models import Message
-from api.deps import ClientSession, get_current_user
+from fastapi import Depends
 
 # Type definitions
 CallableRef = NewType('CallableRef', str)
@@ -57,7 +52,7 @@ class FunctionValidator:
                         )
 
     @staticmethod
-    async def validate_against_db(session: ClientSession, 
+    async def validate_against_db(session: Depends, 
                                   fn: str, 
                                   kwargs: Dict[str, Any], 
                                   func_type : Literal['validator', 'sampler']='validator') -> Dict:
@@ -149,8 +144,8 @@ class FunctionRegistry:
         if name not in self.validators:
             raise ValueError("Validator not found")
         return self.validators[name]
-    
-registry = FunctionRegistry()
+
+registry = FunctionRegistry()    
 
 class FunctionDecorator:
     """Class decorator to register function in FunctionRegistry"""
@@ -175,83 +170,7 @@ class FunctionDecorator:
             registry.register_validator(func_name, wrapper)
         
         return wrapper
-
-def _call(fn: str, type: Literal['validator', 'sampler']) -> Callable:
-    """Retrieve a callable function by name from the FunctionRegistry"""
-    if fn.startswith("_"):
-        raise ValueError("Cannot reference a private function.")
     
-    # Use registry to retrieve the function
-    if type == 'sampler':
-        return registry.get_sampler(fn)
-    elif type == 'validator':
-        return registry.get_validator(fn)
-    
-    raise ValueError(f"Function '{fn}' is either not found or not accessible.")
-
-router = APIRouter()
-
-@router.post("/", dependencies=[Depends(get_current_user)])
-async def function_call(
-    session: ClientSession,
-    type : Literal['validator', 'sampler'],
-    fn: str,
-    kwargs: Dict[str, Any]
-) -> Message:
-    """Execute a registered function with the provided arguments."""
-    try:
-        # Validate against database metadata
-        await FunctionValidator.validate_against_db(session, fn, kwargs, type)
-        
-        # Get the callable function
-        function = _call(fn, type)
-        
-        # Validate parameters against actual function
-        FunctionValidator.validate_parameters(function, kwargs)
-        
-        # Execute the function
-        response = await function(**kwargs) if asyncio.iscoroutinefunction(function) else function(**kwargs)
-        
-        return Message(
-            status="success",
-            message="Judge has successfully determined end state.",
-            data=response
-        )
-        
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-        
-    except TypeError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid arguments provided: {str(e)}"
-        )
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Something went wrong on the server side: {str(e)}"
-        )
-    
-
-@FunctionDecorator(function_type='validator')
-def target(*, source: str, target: str, regex: Union[str, re.Pattern, None] = None, ignore_case: bool = False):
-    if regex is not None:
-        if isinstance(regex, str):
-            flags = re.IGNORECASE if ignore_case else 0
-            regex = re.compile(regex, flags)
-        
-        result = regex.sub(target, source)
-        return result
-    else:
-        return source.lower() == target.lower() if ignore_case else source == target
-
-@FunctionDecorator(function_type='sampler')
-def get_bad_word():
-    return "go fuck your self"
 
 
 

@@ -296,17 +296,19 @@ class GamePublic(BaseModel):
 
 class GameSession(BaseModel):
     """Session model for Session object"""
-    id: ObjectId = Field(default_factory=ObjectId, alias="_id")
+    id: Optional[ObjectId] = Field(default_factory=ObjectId, alias="_id")
     user_id: ObjectId = Field(...)
     game_id: ObjectId = Field(...)
     judge_id: ObjectId = Field(...)
     agent_id: ObjectId = Field(...)
+    description : Optional[str] = Field(...)
     history: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
     completed: bool = False
     create_time: datetime = Field(default_factory=datetime.now)
-    complete_time: Optional[datetime] = None
+    completed_time: Optional[datetime] = None
     outcome: Optional[str] = None
     shared: Optional[HttpUrl] = None
+    metadata : Dict[str, Any]
 
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
@@ -340,6 +342,8 @@ class GameSession(BaseModel):
 class GameSessionCreateResponse(BaseModel):
     """Response model for creating a new game session"""
     session_id: str = Field(...)
+    description: str = Field(...)
+    metadata : Dict[str, Any]
 
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
@@ -354,7 +358,9 @@ class GameSessionCreateResponse(BaseModel):
     @classmethod
     def from_game(cls, game : GameSession):
         return cls(
-            session_id=str(game.id)
+            session_id=str(game.id),
+            metadata=game.metadata,
+            description=game.description
         )
 
 
@@ -365,11 +371,12 @@ class GameSessionPublic(BaseModel):
     user_id : Optional[str]
     history : List[Dict[str, Any]] 
     completed: bool = False
-    complete_time: Optional[datetime] = None
+    completed_time: Optional[datetime] = None
     outcome: Optional[str] = None
     user : Dict[str, Any]
     model : Dict[str, Any]
     judge : Dict[str, Any]
+    metadata : Dict[str, Any]
     
     @classmethod
     def from_dict(cls, obj : Dict[str, Any]):
@@ -383,6 +390,7 @@ class GameSessionPublic(BaseModel):
             user=obj.get("user"),
             model=obj.get("model"),
             judge=obj.get("judge"),
+            metadata=obj.get("metadata")
         )
 
 class GameSessionChatResponse(BaseModel):
