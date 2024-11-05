@@ -429,7 +429,7 @@ async def update_game_session(*,
 
     return {"message": "Session updated successfully"}
 
-async def get_sessions_for_user(user_id: str, 
+async def get_sessions_for_user(user_id: str | ObjectId, 
                                 session: Database) -> List[GameSession]:
     """
     Get all game sessions for a specific user.
@@ -442,15 +442,17 @@ async def get_sessions_for_user(user_id: str,
         List[GameSession]: List of GameSession objects for the user.
     """
     try:
-        user_id_obj = ObjectId(user_id)
+
+        user_id = ObjectId(user_id) if isinstance(user_id, str)\
+                                    else user_id
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid user_id format"
         )
 
-    sessions_data = await session["GameSessions"].find({
-        "user_id": user_id_obj,
+    sessions_data = await session["sessions"].find({
+        "user_id": user_id,
         "completed": True
     }).to_list(length=None)
 

@@ -296,6 +296,7 @@ class GamePublic(BaseModel):
 
 class GameSession(BaseModel):
     """Session model for Session object"""
+    id: ObjectId = Field(default_factory=ObjectId, alias="_id")
     user_id: ObjectId = Field(...)
     game_id: ObjectId = Field(...)
     judge_id: ObjectId = Field(...)
