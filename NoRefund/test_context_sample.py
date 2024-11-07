@@ -2,7 +2,7 @@ from openai_client import OpenAIClient
 import os
 from config import policy
 
-def generate_scenario(client):
+def generate_scenario(client, model):
     ################ sample a context for the game
     context_sample_prompt = """
     Below is the refund policy from an Airline company:
@@ -19,7 +19,7 @@ def generate_scenario(client):
     response = client.generate([{
         'role': 'user',
         'content': context_sample_prompt
-    }], 'accounts/fireworks/models/llama-v3p1-70b-instruct')
+    }], model)
 
     chunk_response = ""
     for chunk in response:
