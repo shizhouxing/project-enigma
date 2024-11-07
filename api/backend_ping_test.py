@@ -23,10 +23,14 @@ async def db_ping_server() -> Coroutine[Any, Any, None]:
         result = await client.admin.command("ping")
         end = time.time()
         logger.info(f"client pinged server to check if healthy result: {bool(result.get("ok"))}")
-        logger.info(f"ping elapse time: {round((end - start), 3)}s")
+        logger.info(f"ping elapse time: {(end - start):.2f}s")
     except Exception as e:
         logger.error(f"Something has occurred: {e}")
         raise e
+    return {
+        "ping" : "successful" if result.get("ok") else "un-successful",
+        "timelaps" : round((end - start), 3)
+    }
 
 if __name__ == "__main__":
     # health check for testing if the server is alive

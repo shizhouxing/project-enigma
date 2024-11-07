@@ -6,7 +6,12 @@ from fastapi.routing import APIRoute
 from starlette.middleware.cors import CORSMiddleware
 
 from api.core.config import settings
-from api.routes import login, user, game, models, game_session
+from api.routes import (login,\
+                        user,\
+                        game,\
+                        models,\
+                        game_session,\
+                        health)
 from api.backend_ping_test import db_ping_server
 from api.cron import compute_leaderboard, check_model_tokens_usage
 
@@ -54,9 +59,5 @@ app.include_router(login.router, tags=["Login"])
 app.include_router(user.router,  tags=["User"])
 app.include_router(game.router, prefix="/game", tags=["Game"])
 app.include_router(models.router, prefix="/model", tags=["Model"])
-app.include_router(game_session.router, tags=["Session"])
-
-
-@app.get("/health/")
-def health_check() -> dict:
-    return { "status" : "Server is function and working" }
+app.include_router(game_session.router)
+app.include_router(health.router)
