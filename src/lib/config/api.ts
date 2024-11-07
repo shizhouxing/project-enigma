@@ -8,7 +8,8 @@ export const API_CONFIG = {
             REGISTER: '/api/signup',
             LOGOUT: '/api/logout',
             AVAILABLE : '/api/available'
-        }
+        },
+        GAME : '/api/game/'
     },
     DEFAULT_HEADERS: {
         'Content-Type': 'application/json',

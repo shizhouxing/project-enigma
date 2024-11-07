@@ -234,3 +234,7 @@ export class ApiClient {
     }
   }
 }
+
+export const client = new ApiClient({
+  baseURL : process.env.FRONTEND_HOST || "http://localhost:3000"
+});

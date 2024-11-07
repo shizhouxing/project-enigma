@@ -1,20 +1,20 @@
-'use client';
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+"use client";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
-const AuthMonitor = () => {
+const AuthMonitor = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
 
   useEffect(() => {
     // Function to check if auth token exists
     const checkAuthToken = () => {
-      const cookies = document.cookie.split(';');
-      const hasAuthToken = cookies.some(cookie => 
-        cookie.trim().startsWith('auth-token=')
+      const cookies = document.cookie.split(";");
+      const hasAuthToken = cookies.some((cookie) =>
+        cookie.trim().startsWith("auth-token=")
       );
 
       if (!hasAuthToken) {
-        router.push('/login');
+        router.push("/login");
       }
     };
 
@@ -30,15 +30,15 @@ const AuthMonitor = () => {
     };
 
     // Add event listener for cookie changes
-    document.addEventListener('cookie-changed', cookieListener);
+    document.addEventListener("cookie-changed", cookieListener);
 
     return () => {
       clearInterval(intervalId);
-      document.removeEventListener('cookie-changed', cookieListener);
+      document.removeEventListener("cookie-changed", cookieListener);
     };
   }, [router]);
 
-  return null; // This component doesn't render anything
+  return <>{children}</>; // This component doesn't render anything
 };
 
 export default AuthMonitor;

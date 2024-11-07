@@ -4,7 +4,7 @@ from datetime import datetime, UTC
 
 from bson.errors import InvalidId
 from bson import ObjectId
-from typing import Annotated, Any, Generator
+from typing import Annotated, Optional
 
 from jwt.exceptions import InvalidTokenError
 
@@ -20,31 +20,37 @@ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login/access-token")
 
-def get_db() -> Generator[AsyncIOMotorDatabase, None, None]:
-    """
-    Context manager for database connections.
-    """
-    client = AsyncIOMotorClient(settings.MONGODB_DATABASE_URI)
-    try:
-        db = client[settings.MONGODB_NAME]
-        yield db
-    finally:
-        client.close()
+class DatabaseManager:
+    client: Optional[AsyncIOMotorClient] = None
+    db: Optional[AsyncIOMotorDatabase] = None
 
-# Annotation type that used in context we desire the read/write access to the db
-Session = Annotated[AsyncIOMotorDatabase, Depends(get_db)]
+    @classmethod
+    def get_client(cls) -> AsyncIOMotorClient:
+        if cls.client is None:
+            cls.client = AsyncIOMotorClient(settings.MONGODB_DATABASE_URI)
+        return cls.client
 
+    @classmethod
+    def get_db(cls) -> AsyncIOMotorDatabase:
+        if cls.db is None:
+            cls.db = cls.get_client()[settings.MONGODB_NAME]
+        return cls.db
+
+async def get_database() -> AsyncIOMotorDatabase:
+    return DatabaseManager.get_db()
+
+Database = Annotated[AsyncIOMotorDatabase, Depends(get_database)]
 
 async def get_current_user(
         token: Annotated[str, Depends(oauth2_scheme)],
-        session: Session
-    ) -> Any:
+        session: Database
+    ) -> User:
     """
     Validate JWT token and return current user.
     
     Args:
         token (str): JWT token from authorization header
-        session (Session): Database session
+        session (Database): Database session
         
     Returns:
         User: Current authenticated user
@@ -64,19 +70,17 @@ async def get_current_user(
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[ALGORITHM]
         )
-
-        user_id = payload.get("sub", None)
         
-        if user_id is None:
+        if (user := payload.get("sub", None)) is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        
-        user_id = ObjectId(user_id)
 
-    except (InvalidTokenError, ValidationError, InvalidId):
+        user_id = ObjectId(user)
+
+    except (InvalidTokenError, ValidationError, InvalidId, Exception):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
@@ -99,9 +103,9 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return user
+    return User.model_validate(user)
 
-async def clear_user_token(session: Session, user_id: ObjectId) -> None:
+async def clear_user_token(session: Database, user_id: ObjectId) -> None:
     """
     Clear a user's access token when it's no longer valid.
     
