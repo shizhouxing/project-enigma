@@ -62,6 +62,12 @@ class Settings(BaseSettings):
     MONGODB_PROTOCOL: str = "mongodb"  # Can be "mongodb" or "mongodb+srv"
     MONGODB_OPTIONS: str = "retryWrites=true&w=majority"
     
+
+    # Google OAuth
+    GOOGLE_CLIENT_ID : str = ""
+    GOOGLE_REDIRECT_URI : str = ""
+    GOOGLE_CLIENT_SECRET : str = ""
+
     @computed_field
     @property
     def MONGODB_DATABASE_URI(self) -> str:
