@@ -14,8 +14,8 @@ from api.models import (StreamResponse,
                         GameSessionPublic, 
                         GameSessionHistoryItem, 
                         Message)
-from api.generative import ModelRegistry
-from api.judge import registry
+from api.generative._registry import ModelRegistry
+from api.judge._registry import registry
 from api.utils import handleStreamResponse
 
 router = APIRouter()

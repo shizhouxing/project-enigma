@@ -1,6 +1,6 @@
 import re
 from typing import Union, Dict, Any
-from api.judge.registry import FunctionDecorator, registry
+from api.judge._registry import FunctionDecorator, registry
 
 __all__ = ["registry"]
 

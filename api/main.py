@@ -6,7 +6,7 @@ from fastapi.routing import APIRoute
 from starlette.middleware.cors import CORSMiddleware
 
 from api.core.config import settings
-from api.routes import (judge, login,\
+from api.routes import (login,\
                         user,\
                         game,\
                         models,\
@@ -64,5 +64,4 @@ app.include_router(user.router,  tags=["User"])
 app.include_router(game.router, prefix="/game", tags=["Game"])
 app.include_router(models.router, prefix="/model", tags=["Model"])
 app.include_router(game_session.router)
-app.include_router(judge.router)
 app.include_router(health.router)
