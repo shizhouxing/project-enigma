@@ -225,9 +225,11 @@ def to_object_id(id : str | ObjectId) -> ObjectId:
         raise e
 
 
+logger = logging.getLogger('uvicorn.error')
+
 def handleStreamResponse(
     *,
-    retry: int = 15_000,
+    retry: int = 1000,
     include_end: bool = False
 ):
     """
@@ -246,8 +248,8 @@ def handleStreamResponse(
         async def wrapper(*args: Any, **kwargs: Any) -> AsyncGenerator[dict, None]:
             try:
                 async for item in func(*args, **kwargs):
-                    if hasattr(item, 'model_dump_json'):
-                        yield dict(item)
+                    if hasattr(item, 'model_dump'):
+                        yield item.model_dump(exclude_none=True)
                     elif isinstance(item, dict):
                         yield item
                     else:
@@ -257,12 +259,11 @@ def handleStreamResponse(
                     yield {
                         "event": "end",
                         "id": "end_message",
-                        "retry": retry,
                         "data": ""
                     }
                     
             except Exception as e:
-                # You might want to customize error handling here
+                logger.error(f"Streaming Event Error: {e}")
                 yield {
                     "event": "error",
                     "id": "error_message",
@@ -272,6 +273,3 @@ def handleStreamResponse(
         return wrapper
     return decorator
     
-
-
-logger = logging.getLogger('uvicorn.error')
