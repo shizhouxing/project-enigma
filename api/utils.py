@@ -6,10 +6,11 @@ import warnings
 import hashlib
 import base64
 import random
+from functools import wraps
 from io import BytesIO
 from functools import wraps
 from traceback import format_exception
-from typing import Any, Callable, Coroutine, Union
+from typing import Any, Callable, Coroutine, Union, AsyncGenerator, Optional
 from datetime import datetime, UTC
 import numpy as np
 from PIL import Image
@@ -223,6 +224,54 @@ def to_object_id(id : str | ObjectId) -> ObjectId:
     except InvalidId as e:
         raise e
 
+
+def handleStreamResponse(
+    *,
+    retry: int = 15_000,
+    include_end: bool = False
+):
+    """
+    Decorator for handling streaming responses in FastAPI endpoints.
+    
+    Args:
+        f: The async generator function to wrap
+        retry: Milliseconds to wait before retry on connection failure
+        include_end: Whether to include an end event in the stream
+        
+    Returns:
+        Wrapped async generator function that yields properly formatted SSE events
+    """
+    def decorator(func: Callable[..., AsyncGenerator[Any, None]]):
+        @wraps(func)
+        async def wrapper(*args: Any, **kwargs: Any) -> AsyncGenerator[dict, None]:
+            try:
+                async for item in func(*args, **kwargs):
+                    if hasattr(item, 'model_dump_json'):
+                        yield dict(item)
+                    elif isinstance(item, dict):
+                        yield item
+                    else:
+                        yield str(item)
+                        
+                if include_end:
+                    yield {
+                        "event": "end",
+                        "id": "end_message",
+                        "retry": retry,
+                        "data": ""
+                    }
+                    
+            except Exception as e:
+                # You might want to customize error handling here
+                yield {
+                    "event": "error",
+                    "id": "error_message",
+                    "retry": retry,
+                    "data": str(e)
+                }
+        return wrapper
+    return decorator
+    
 
 
 logger = logging.getLogger('uvicorn.error')

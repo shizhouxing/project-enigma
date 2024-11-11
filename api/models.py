@@ -374,4 +374,11 @@ class ModelPublic(BaseModel):
     
 
 
+class StreamResponse(BaseModel):
+    event : Literal["message", "end"]
+    id : str
+    retry : int
+    data : Dict[str, Any] | str
+
+
 # # NOTE if you need more Models then continue here
