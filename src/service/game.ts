@@ -1,5 +1,18 @@
 import { API_CONFIG } from "@/lib/config/api";
+import { createStream } from "@/lib/sse";
 import { Game, GameErrorResponse } from "@/types/game";
+
+export async function getGameStream() : Promise<ReadableStream<any>> {
+  const response = await fetch(`${process.env.FRONTEND_HOST}${API_CONFIG.ENDPOINTS.GAME}stream?s=0`);
+  
+  const stream = createStream(response,{
+    eventTypes : ["messages", "error"],
+    transformData : (data : string) => { return JSON.parse(data);  },
+  });
+
+  
+  return stream;
+}
 
 export async function getGames(skip : number = 0, include : number = 0): Promise<Game[] | GameErrorResponse> {
   try {
