@@ -6,10 +6,8 @@ export async function getGameStream() : Promise<ReadableStream<any>> {
   const response = await fetch(`${process.env.FRONTEND_HOST}${API_CONFIG.ENDPOINTS.GAME}stream?s=0`);
   
   const stream = createStream(response,{
-    eventTypes : ["messages", "error"],
-    transformData : (data : string) => { return JSON.parse(data);  },
+    eventTypes : ["message", "error"],
   });
-
   
   return stream;
 }

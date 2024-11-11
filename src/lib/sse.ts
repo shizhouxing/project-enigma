@@ -69,7 +69,6 @@ import {
         function onEvent(event: EventSourceMessage): void {
           try {
             // Process only specified event types
-            console.log("event", event, event.id)
             if (eventTypes.includes(event.event ?? "message")) {
               const transformedData = transformData(event.data);
               controller.enqueue(encoder.encode(`${transformedData}\n`));
