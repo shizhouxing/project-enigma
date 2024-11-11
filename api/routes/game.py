@@ -1,6 +1,4 @@
 from __future__ import annotations
-
-import asyncio
 from typing import List, Any, Optional, Dict
 
 from fastapi import APIRouter, HTTPException
@@ -55,7 +53,6 @@ async def get_all_games_stream(
             yield StreamResponse(
                     event="message",
                     id="game",
-                    retry=15_000,
                     data=GamePublic(
                         id=str(game.id),
                         title=game.title,
