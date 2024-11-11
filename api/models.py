@@ -377,7 +377,7 @@ class ModelPublic(BaseModel):
 class StreamResponse(BaseModel):
     event : Literal["message", "end"]
     id : str
-    retry : int
+    retry : Optional[int] = None
     data : Dict[str, Any] | str
 
 
