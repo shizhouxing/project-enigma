@@ -14,7 +14,7 @@ Usage:
     from api import crud
     
     # In your route handler:
-    user = await crud.get_user_by_username(session=db, username="example")
+    user = await crud.get_user_by_username(db=db, username="example")
 
 Dependencies:
 - FastAPI for HTTP exception handling
@@ -23,45 +23,108 @@ Dependencies:
 """
 import re
 
-from typing import Optional, List, Union
+
+from typing import Optional, Literal, List, Union, AsyncGenerator
 from datetime import datetime, UTC
 
 from fastapi import HTTPException, status
 
 from api.deps import Database
 from api.core.security import get_password_hash, verify_password
-from api.models import User, UserRegister, Game, GameSession, Model, GameSessionPublic
+from api.models import User,\
+                       UserRegister,\
+                       Game,\
+                       GameSession,\
+                       GameSessionPublic,\
+                       Model,\
+                       Judge
 from api.judge import registry
-from api.utils import generate
-from bson import ObjectId, errors
+from api.utils import generate, to_object_id, logger
+from bson import ObjectId
+from bson.errors import InvalidId
 import random
 
 
 # = User ==============================================================
 
-async def get_user_by_username(*, session: Database, username: str) -> Optional[User]:
+async def get_user_by_username(*, db: Database, username: str) -> Optional[User]:
     """Retrieve user from database by username.
     
     Args:
-        session (Database): Database session
+        db (Database): Database session
         username (str): Username to look up
         
     Returns:
         Optional[User]: User if found, None otherwise
     """
+    user_data = await db.users.find_one({"username": re.compile(f"^{username}$", re.IGNORECASE)})
+    if user_data:
+        return User(**user_data)
+    return None
 
-    user_data = await session.users.find_one({"username": re.compile(f"^{username}$", re.IGNORECASE)})
-
+async def get_user_by_email(*, db: Database, email: str) -> Optional[User]:
+    """Retrieve user from database by email.
+    
+    Args:
+        db (Database): Database session
+        email (str): Email to look up
+        
+    Returns:
+        Optional[User]: User if found, None otherwise
+    """
+    user_data = await db.users.find_one({"email": email})
     if user_data:
         return User(**user_data)
     return None
 
 
-async def create_user(*, session: Database, user_create: UserRegister) -> User:
+async def find_user(*, db: Database, username: str) -> Union[User, None]:
+    """
+    Find a user by username, checking both case-sensitive and case-insensitive matches
+    Args:
+        session: MongoDB session instance
+        username: Username to search for
+    Returns:
+        User document if found, None otherwise
+    """
+    try:
+        user = await db.users.find_one({
+            "$or": [
+                {"username": username},  # Exact case-sensitive match
+                {"username": re.compile(f"^{username}$", re.IGNORECASE)}  # Case-insensitive match
+            ]
+        })
+
+        if user is None:
+            return None
+        
+        return User(**user)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error finding user: {str(e)}"
+        )
+
+async def update_username(*, db : Database, username : str):
+    existing_user = await get_user_by_username(
+        db=db, username=username
+    )
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Interrupt username already registered"
+        )
+    
+    db["users"].update_one({
+        "_id" : existing_user.id
+    })
+
+
+async def create_user(*, db: Database, user_create: UserRegister) -> User:
     """Create new user in database.
     
     Args:
-        session (Database): Database session
+        db (Database): Database session
         user_create (UserRegister): User registration data
         
     Returns:
@@ -71,38 +134,49 @@ async def create_user(*, session: Database, user_create: UserRegister) -> User:
         HTTPException: If username already exists or if there's a database error
     """
     try:
-        existing_user = await get_user_by_username(
-            session=session, username=user_create.username
-        )
-        if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Username already registered"
+
+        if user_create.provider == "google":
+            user_data = user_create.model_dump()
+            user_data["created_at"]   = datetime.now(UTC)
+            user_data["password"]     = None
+            user_data["last_login"]   = None
+            user_data["last_signout"] = None
+            user_data["access_token"] = None
+        else:
+            existing_user = await get_user_by_username(
+                db=db, username=user_create.username
             )
+            if existing_user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Interrupt username already registered"
+                )
 
-        hashed_password = get_password_hash(user_create.password)
-        user_data = user_create.dict()
-        user_data["password"] = hashed_password
-        user_data["created_at"] = datetime.now(UTC)
-        user_data["last_login"] = None
-        user_data["last_signout"] = None
-        user_data["access_token"] = None
-        user_data["icon"] = generate(user_create.username)
 
-        result = await session.users.insert_one(user_data)
+            hashed_password = get_password_hash(user_create.password)
+            user_data = user_create.model_dump()
+            user_data["password"] = hashed_password
+            user_data["created_at"] = datetime.now(UTC)
+            user_data["last_login"] = None
+            user_data["last_signout"] = None
+            user_data["access_token"] = None
+            user_data["image"] = generate(user_create.username)
+
+        result = await db.users.insert_one(user_data)
 
         user_data["id"] = str(result.inserted_id)
         return User(**user_data)
 
     except Exception as e:
+        logger.info(f"Error occurred {str(e)}")
         # Catch any unexpected errors
         # Log the error here if you have logging configured
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred"
+            detail="Interrupt an unexpected error occurred"
         ) from e
 
-async def authenticate(*, session : Database, username : str, password : str) -> Optional[User]:
+async def authenticate(*, db : Database, username : str, password : str) -> Optional[User]:
     """
     
 
@@ -114,7 +188,7 @@ async def authenticate(*, session : Database, username : str, password : str) ->
     Returns:
         Optional[User]: if the user does not exist or the password does not match return None else User
     """
-    user = await get_user_by_username(session=session, username=username)
+    user = await find_user(db=db, username=username)
     if user is None:
         return None
     if not verify_password(password, user.password):
@@ -126,13 +200,13 @@ async def authenticate(*, session : Database, username : str, password : str) ->
 
 # = Game ==============================================================
 
-async def get_game_from_id(*, session: Database, id: str) -> Game:
+async def get_game_from_id(*, db: Database, id: str) -> Game:
     """
     Fetch Game object by its game_id including associated judge information
     
     Args:
         session: MongoDB session instance
-        game_id (str): Unique session ID of GameSession
+        game_id (str): Unique ID of Game collection
         
     Returns:
         Game: Game object with judge information, if found
@@ -141,27 +215,31 @@ async def get_game_from_id(*, session: Database, id: str) -> Game:
         HTTPException: If game_id is invalid or game is not found
     """
     try:
-        id = ObjectId(id)
-    except errors.InvalidId:
+        id = to_object_id(id)
+        game_data = await db.games.find_one({
+            "_id": id
+        })
+
+    except InvalidId:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Not a valid ID"
+            detail="Interrupt not a valid ID"
         )
-
-    game_data = await session.games.find_one({
-                "_id": id
-        },)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Interrupt exception thrown trying to find game form ID"
+        )
     
     if not game_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Game not found"
+            detail=f"Interrupt game not found from ID: {id}"
         )
     
+    return Game(**game_data)
 
-    return Game.model_validate(game_data)
-
-async def get_games(*, session: Database) -> List[Game]:
+async def get_games(*, db: Database, skip : int = 0, limit : int | None= None ) -> AsyncGenerator[Game, None]:
     """
     Fetch all games from the database
     
@@ -176,19 +254,25 @@ async def get_games(*, session: Database) -> List[Game]:
     """
     try:
         # Convert cursor to list since find() returns a cursor
-        game_data = await session.games.find({}).to_list(length=None)
-        if game_data is None:  # This would be unusual - likely a connection issue
+        query = db.games.find({}).skip(skip=skip)
+        if limit is not None:
+            query = query.limit(limit=limit)
+        
+        game_data = await query.to_list(length=None)
+
+        if not game_data:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Something went wrong when finding the games"
+                detail="Interrupt something went wrong when finding the games"
             )
             
-        return [Game.model_validate(game) for game in game_data]
+        for game in game_data:
+            yield Game(**game)
     
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving games: {str(e)}"
+            detail=f"Interrupt retrieving games: {str(e)}"
         )
 
 # =====================================================================
@@ -197,7 +281,7 @@ async def get_games(*, session: Database) -> List[Game]:
 # = Session ==============================================================
 
 async def create_game_session(*, 
-                              session:  Database, 
+                              db: Database, 
                               user_id:  Union[str, ObjectId], 
                               game_id:  Union[str, ObjectId],
                               model_id: Union[str, ObjectId]) -> GameSession:
@@ -217,40 +301,69 @@ async def create_game_session(*,
     """
 
     try:
-        user_id = ObjectId(user_id) if (isinstance(user_id, str)) else user_id
-        game_id = ObjectId(game_id) if (isinstance(game_id, str)) else game_id
-        model_id = ObjectId(model_id) if (isinstance(model_id, str)) else model_id
-    
-        game = await session.games.aggregate([{
-            "$match" : {"_id" : game_id} 
-        },
-        {
-            "$lookup": {
-                "from": "judges",
-                "localField": "judge_id",
-                "foreignField": "_id",
-                "as": "judge"
-            }
-        },
-        {
+
+        user_id  = to_object_id(user_id)
+        game_id  = to_object_id(game_id)
+        model_id = to_object_id(model_id)
+
+        # get the full game object
+        game = await db.games.aggregate([
+            {
+                "$match": {
+                    "_id": game_id
+                }
+            },
+            {
+                "$lookup": {
+                    "from": "judges",
+                    "localField": "judge_id",
+                    "foreignField": "_id",
+                    "as": "judge"
+                }
+            },
+            {
+                "$lookup": {
+                    "from": "models",
+                    "localField": "agent_id",
+                    "foreignField": "_id",
+                    "as": "model"
+                }
+            },
+            {
                 "$unwind": {
                     "path": "$judge",
                     "preserveNullAndEmptyArrays": True
                 }
-        },{
-                
-            "$project": {
-                "metadata" : 1,
-                "judge_id" : 1,
-                "session_description" : 1,
-                "judge" : {
-                        "sampler" : 1,
-                    }
-                },   
             },
             {
-                "$limit": 1  # This ensures we only get one document]
-            }]).to_list(length=None)
+                "$unwind": {
+                    "path": "$model",
+                    "preserveNullAndEmptyArrays": True
+                }
+            },
+            {
+                "$match": {
+                    "model._id": model_id 
+                }
+            },
+            {
+                "$project": {
+                    "metadata": 1,
+                    "judge_id": 1,
+                    "model": {
+                        "name": 1,
+                        "image": 1
+                    },
+                    "session_description": 1,
+                    "judge": {
+                        "sampler": 1
+                    }
+                }
+            },
+            {
+                "$limit": 1
+            }
+        ]).to_list(length=None)
 
         game = game[0]
         if (sample_fn := game["judge"].get("sampler", {}).get("function", None)) is None:
@@ -259,11 +372,18 @@ async def create_game_session(*,
                 detail="Missing sampler function"
             )
 
-        kwargs = registry.get_sampler(sample_fn["name"])()
+
+        # we need to sample from out game distribution sample function.
+        # Properties a sampler should hold if game needs to change model
+        # configurator then we need to add a meta data object to which it will be deleted
+        # after it's been allocated to the game session 
+        sample = registry.get_sampler(sample_fn["name"])()
+
+
 
         description=None
         if game["metadata"].get("game_rules", {}).get("deterministic", False):
-            description = f"{game["session_description"]} {kwargs.get("target", "")}"
+            description = f"{game["session_description"]} {sample.get("target", "")}"
         else:
             description = f"{game["session_description"]}"
 
@@ -280,14 +400,14 @@ async def create_game_session(*,
             completed_time=None,
             outcome=None,
             shared=None,
-            metadata={ "kwargs" : kwargs } |  game["metadata"]
+            metadata= game["metadata"] | sample
         ).model_dump()
 
         del new_session["id"]
-        result = await session.sessions.insert_one(new_session) 
+        result = await db.sessions.insert_one(new_session) 
         new_session["session_id"] = str(result.inserted_id)
 
-    except errors.InvalidId:
+    except InvalidId:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid ID format"
@@ -298,16 +418,17 @@ async def create_game_session(*,
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Something else went wrong"
         )
-    return GameSession.model_validate(new_session)
+    return GameSession(**new_session)
 
 
-async def delete_game_session(session: Database, session_id: str) -> None:
-    await session["session"].delete_one({"_id": session_id})
+async def delete_game_session(db : Database, session_id: str) -> None:
+    """ delete session for testing """
+    await db.sessions.delete_one({"_id": ObjectId(session_id)})
 
 async def get_session(*, 
                       session_id : str, 
                       user_id : Optional[ObjectId], 
-                      session: Database) -> GameSessionPublic:
+                      db: Database) -> GameSessionPublic:
     """
     Get session object by session_id
 
@@ -333,7 +454,7 @@ async def get_session(*,
         )
 
 
-    session_data = session["sessions"].aggregate(
+    session_data = db.sessions.aggregate(
         [{
                 "$match": query
             },
@@ -444,7 +565,7 @@ async def get_session(*,
     return GameSessionPublic.from_dict(game_session)
 
 async def update_game_session(*, 
-                              session : Database, 
+                              db : Database, 
                               session_id: str,
                               updated_session: GameSession,
                               updates : List[str]):
@@ -458,13 +579,13 @@ async def update_game_session(*,
     """
     try:
         session_id_obj = ObjectId(session_id)
-    except Exception:
+    except :
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid session_id format"
         )
 
-    result = await session["sessions"].update_one(
+    result = await db.sessions.update_one(
         {"_id": session_id_obj},
         {"$set": { name : getattr(updated_session, name) for name in updates }}
     )
@@ -478,7 +599,7 @@ async def update_game_session(*,
     return {"message": "Session updated successfully"}
 
 async def get_sessions_for_user(user_id: str | ObjectId, 
-                                session: Database) -> List[GameSession]:
+                                db: Database) -> List[GameSession]:
     """
     Get all game sessions for a specific user.
 
@@ -491,15 +612,15 @@ async def get_sessions_for_user(user_id: str | ObjectId,
     """
     try:
 
-        user_id = ObjectId(user_id) if isinstance(user_id, str)\
-                                    else user_id
+        user_id = to_object_id(user_id)
+
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid user_id format"
         )
 
-    sessions_data = await session["sessions"].find({
+    sessions_data = await db.sessions.find({
         "user_id": user_id,
         "completed": True
     }).to_list(length=None)
@@ -517,8 +638,8 @@ async def get_sessions_for_user(user_id: str | ObjectId,
 # = Model ==============================================================
 
 
-async def get_models(session : Database) -> List[Model]:
-    models = await session.models.find({
+async def get_models(db : Database) -> List[Model]:
+    models = await db.models.find({
         "available" : True
     }).to_list()
 
@@ -531,7 +652,7 @@ async def get_models(session : Database) -> List[Model]:
     return [Model.model_validate(model) for model in models]
 
 
-async def get_random_model_id(session : Database) -> ObjectId:
+async def get_random_model_id(db : Database) -> ObjectId:
     """
     Fetch a random model ID from the Models collection.
 
@@ -541,7 +662,7 @@ async def get_random_model_id(session : Database) -> ObjectId:
         str: The ID of the randomly selected model
     """
 
-    models : List[Model] = await get_models(session=session)
+    models : List[Model] = await get_models(db=db)
 
     if not models:
         raise HTTPException(
@@ -559,4 +680,51 @@ async def get_random_model_id(session : Database) -> ObjectId:
 
 def get_model_client_from_provider(provider : str):
     ...
+# =====================================================================
+
+
+# Judge ===============================================================
+
+async def get_judge_from_id(*, 
+                            db :Database,
+                            id : str | ObjectId) -> Judge:
+    """
+    Retrieves a Judge from the database by its unique ID.
+
+    Parameters:
+        db (Database): The database instance to query.
+        id (str | ObjectId): The ID of the judge to retrieve, either as a string or ObjectId.
+
+    Returns:
+        Judge: An instance of the Judge model populated with the retrieved document's data.
+
+    Raises:
+        HTTPException: Raises 404 if no judge is found, 400 if the ID is invalid or another error occurs.
+    """
+    try:
+        response = await db.judges.find_one({
+            "_id" : ObjectId(id)
+        })
+
+        if response is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Interupt there exist no judge with id: {id}"
+            )
+        
+        response["_id"] = str(response["_id"])
+
+        return Judge(**response)
+
+    except InvalidId:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Interupt {id} is not a valid id."
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Interupt {e}."
+        )
+
 # =====================================================================

@@ -4,17 +4,20 @@ import asyncio
 import logging
 import warnings
 import hashlib
-import numpy as np
-from PIL import Image
 import base64
+import random
 from io import BytesIO
 from functools import wraps
 from traceback import format_exception
 from typing import Any, Callable, Coroutine, Union
 from datetime import datetime, UTC
-import random
+import numpy as np
+from PIL import Image
 
 from starlette.concurrency import run_in_threadpool
+
+from bson import ObjectId
+from bson.errors import InvalidId
 
 NoArgsNoReturnFuncT = Callable[[], None]
 NoArgsNoReturnAsyncFuncT = Callable[[], Coroutine[Any, Any, None]]
@@ -210,6 +213,15 @@ def generate(txt: str, primary: int | None = None, secondary: int | None = None)
         img_bytes = buffered.getvalue()
         
         return f"data:image/webp;base64,{base64.b64encode(img_bytes).decode("utf-8")}"
+
+
+def to_object_id(id : str | ObjectId) -> ObjectId:
+    try: 
+        if isinstance(id, str):
+            return ObjectId(id)
+        return id
+    except InvalidId as e:
+        raise e
 
 
 

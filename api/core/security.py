@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict
+from typing import Any
 
 import jwt
 
@@ -18,7 +18,7 @@ def create_access_token(subject: str | Any, expires_delta: timedelta) -> str:
     Creating an access token
 
     Args:
-        subject (str | Any): extra information 
+        subject (str | Any): extra information that could be serialized json or just an email.
         expires_delta (timedelta): expiry date to when the token is not valid
 
     Returns:

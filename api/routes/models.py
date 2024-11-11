@@ -9,6 +9,6 @@ router = APIRouter()
 
 
 @router.get("/")
-async def get_public_models(session : Database) -> List[ModelPublic]:
-    models : List[Model]= await get_models(session=session)
+async def get_public_models(db : Database) -> List[ModelPublic]:
+    models : List[Model]= await get_models(db=db)
     return [ModelPublic.from_model(model) for model in models]

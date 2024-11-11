@@ -8,10 +8,13 @@ import { Label } from "@/components/ui/label";
 import { SignupFormSchema } from "@/lib/definition";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
+import { GoogleProvider } from "./oauth/google";
+import { useNotification } from "./toast";
+import { useUser } from "@/context/user";
 
 interface AuthFormsProps {
   onUsernameSubmit: (username: string) => Promise<any>;
-  onSignIn: (formData: FormData) => Promise<any>;
+  onSignIn: (username: string, password: string) => Promise<any>;
   onSignUp: (formData: FormData) => Promise<any>;
   error: string[];
 }
@@ -21,8 +24,9 @@ export const AuthForms = ({
   onSignIn,
   onSignUp,
 }: AuthFormsProps) => {
-  const router = useRouter()
-  const [state, setState] = useState("username")
+  const router = useRouter();
+  const notification = useNotification();
+  const [state, setState] = useState("username");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -37,8 +41,14 @@ export const AuthForms = ({
     setIsLoading(true);
     try {
       const response = await onUsernameSubmit(username);
-      setState(response.step)
-      setUsername(response.username)
+      setState(response.step);
+      if (response.error){
+        setError([response.error ?? "You must sign in via the provider"])
+      } else {
+        setUsername(response.username);
+      }
+      
+      
     } finally {
       setIsLoading(false);
     }
@@ -53,13 +63,21 @@ export const AuthForms = ({
       const formData = new FormData();
       formData.append("username", username);
       formData.append("password", password);
-      const response = await onSignIn(formData);
-      if (!response.success){
-        setError([response.message])
+      const response = await onSignIn(username, password);
+      if (!response.ok) {
+        if (typeof response.message === "string") {
+          setError([response.message]);
+        } else {
+          setError(response.message.map((m: any) => m.msg));
+        }
       } else {
-        router.push("/")
+        notification.showSuccess("Successfully Logged In");
+        if (window.history?.length && window.history.length > 1) {
+          router.back();
+        } else {
+          router.push("/");
+        }
       }
-      
     } finally {
       setIsLoading(false);
     }
@@ -67,42 +85,50 @@ export const AuthForms = ({
 
   const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
+
     // First check password match
     if (password !== confirmPassword) {
       setError(["Passwords do not match"]);
       return;
     }
-  
+
     setIsLoading(true);
     try {
       // Validate the form data using Zod schema
       SignupFormSchema.parse({
         username,
-        password
+        password,
       });
-  
+
       // If validation passes, create and send form data
       const formData = new FormData();
       formData.append("username", username);
       formData.append("password", password);
-      
+
       const response = await onSignUp(formData);
-      
+
       // Handle server response
-      if (response.message) {
-        setError([response.message]);
+      if (!response.ok && response.message) {
+        if (typeof response.message === "string") {
+          setError([response.message]);
+        } else {
+          setError(response.message.map((m: any) => m.msg));
+        }
         return;
       }
-  
+
+      notification.showSuccess("Successfully Signed Up");
+
+      // sign in
+      await handleSignIn(e);
     } catch (err) {
       // Handle Zod validation errors
       if (err instanceof z.ZodError) {
-        const validationErrors = err.errors.map(error => {
-          const field = error.path.join('.');
-          return `• ${error.message}`;
-        });
-        setError(validationErrors);
+        setError(
+          err.errors.map((error) => {
+            return `• ${error.message}`;
+          })
+        );
       } else {
         // Handle unexpected errors
         setError(["An unexpected error occurred during sign up"]);
@@ -113,54 +139,58 @@ export const AuthForms = ({
   };
 
   return (
-    <div className="space-y-4">
-      {error.length > 0 && (
-        <Alert variant="destructive" className="bg-red-900/20 border-red-900/50 text-red-400">
-          <AlertDescription>
-            <ul>
-              {error.map((err: string, index: number) => (
-                <li key={`error-${index}`}>{err}</li>
-              ))}
-            </ul>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {state === "username" && (
-        <>
-          <Input
-            type="text"
-            placeholder="username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            className="bg-zinc-900 border-zinc-800 text-white"
-            disabled={isLoading}
-          />
-          <Button
-            className="w-full bg-white text-black hover:bg-gray-100"
-            onClick={handleUsernameSubmit}
-            disabled={isLoading}
+    <>
+      <div className="space-y-4">
+        {error.length > 0 && (
+          <Alert
+            variant="destructive"
+            className="bg-red-900/20 border-red-900/50 text-red-400"
           >
-            {isLoading ? "Checking..." : "Continue"}
-          </Button>
-        </>
-      )}
+            <AlertDescription>
+              <ul>
+                {error.map((err: string, index: number) => (
+                  <li key={`error-${index}`}>{err}</li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        )}
 
-      {state === "signin" && (
-        <form onSubmit={handleSignIn} className="space-y-4">
-          <div className="space-y-2">
-            <div className="text-sm text-zinc-400">
-              Signing in as {username}
-            </div>
+        {state === "username" && (
+          <>
             <Input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              type="text"
+              placeholder="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               className="bg-zinc-900 border-zinc-800 text-white"
               disabled={isLoading}
             />
-          </div>
+            <Button
+              className="w-full bg-white text-black hover:bg-gray-100"
+              onClick={handleUsernameSubmit}
+              disabled={isLoading}
+            >
+              {isLoading ? "Loading..." : "Continue"}
+            </Button>
+          </>
+        )}
+
+        {state === "signin" && (
+          <form onSubmit={handleSignIn} className="space-y-4">
+            <div className="space-y-2">
+              <div className="text-sm text-zinc-400">
+                Signing in as {username}
+              </div>
+              <Input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="bg-zinc-900 border-zinc-800 text-white"
+                disabled={isLoading}
+              />
+            </div>
             <Button
               type="submit"
               className="w-full bg-white text-black hover:bg-gray-100"
@@ -178,50 +208,51 @@ export const AuthForms = ({
                 setConfirmPassword("");
                 setUsername("");
                 setError([]);
-              }}>
-                      Use a different username
+              }}
+            >
+              Use a different username
             </Button>
-        </form>
-      )}
+          </form>
+        )}
 
-      {state === "signup" && (
-        <form onSubmit={handleSignUp} className="space-y-4">
-          <div className="space-y-2">
-            <div className="text-sm text-zinc-400">
-              Creating account for {username}
+        {state === "signup" && (
+          <form onSubmit={handleSignUp} className="space-y-4">
+            <div className="space-y-2">
+              <div className="text-sm text-zinc-400">
+                Creating account for {username}
+              </div>
+              <Label className="block mb-2 text-sm font-medium text-white">
+                Password
+                <Input
+                  type="password"
+                  placeholder="**************"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="mt-1 block w-full bg-zinc-900 border-zinc-800 text-white"
+                  disabled={isLoading}
+                />
+              </Label>
+
+              <Label className="block mb-2 text-sm font-medium text-white">
+                Confirm Password
+                <Input
+                  type="password"
+                  placeholder="**************"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="mt-1 block w-full bg-zinc-900 border-zinc-800 text-white"
+                  disabled={isLoading}
+                />
+              </Label>
             </div>
-            <Label className="block mb-2 text-sm font-medium text-white">
-              Password
-              <Input
-                type="password"
-                placeholder="**************"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full bg-zinc-900 border-zinc-800 text-white"
-                disabled={isLoading}
-              />
-            </Label>
-
-            <Label className="block mb-2 text-sm font-medium text-white">
-              Confirm Password
-              <Input
-                type="password"
-                placeholder="**************"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="mt-1 block w-full bg-zinc-900 border-zinc-800 text-white"
-                disabled={isLoading}
-              />
-            </Label>
-          </div>
-          <Button
-            type="submit"
-            className="w-full bg-white text-black hover:bg-gray-100"
-            disabled={isLoading}
-          >
-            {isLoading ? "Creating account..." : "Create account"}
-          </Button>
-          <Button
+            <Button
+              type="submit"
+              className="w-full bg-white text-black hover:bg-gray-100"
+              disabled={isLoading}
+            >
+              {isLoading ? "Creating account..." : "Create account"}
+            </Button>
+            <Button
               type="button"
               variant="ghost"
               className="w-full text-zinc-400 hover:text-white"
@@ -229,13 +260,31 @@ export const AuthForms = ({
                 setState("username");
                 setPassword("");
                 setConfirmPassword("");
-                setUsername("")
+                setUsername("");
                 setError([]);
-              }}>
-                      Use a different username
+              }}
+            >
+              Use a different username
             </Button>
-        </form>
+          </form>
+        )}
+      </div>
+      {state == "username" && (
+        <>
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-zinc-800"></span>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-zinc-950 px-2 text-zinc-400">
+                Or continue with
+              </span>
+            </div>
+          </div>
+
+          <GoogleProvider loading={isLoading} setIsLoading={setIsLoading} />
+        </>
       )}
-    </div>
+    </>
   );
 };

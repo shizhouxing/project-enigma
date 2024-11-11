@@ -1,20 +1,29 @@
 "use client";
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
 const AuthMonitor = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     // Function to check if auth token exists
     const checkAuthToken = () => {
       const cookies = document.cookie.split(";");
       const hasAuthToken = cookies.some((cookie) =>
-        cookie.trim().startsWith("auth-token=")
+        cookie.trim().startsWith("sessionKey=")
       );
 
-      if (!hasAuthToken) {
+      // If on login page and authenticated, redirect to home
+      if (pathname === "/login" && hasAuthToken) {
+        router.push("/");
+        return;
+      }
+
+      // If not on login page and not authenticated, redirect to login
+      if (pathname !== "/login" && !hasAuthToken) {
         router.push("/login");
+        return;
       }
     };
 
@@ -36,9 +45,9 @@ const AuthMonitor = ({ children }: { children: React.ReactNode }) => {
       clearInterval(intervalId);
       document.removeEventListener("cookie-changed", cookieListener);
     };
-  }, [router]);
+  }, [router, pathname]); // Added pathname to dependencies
 
-  return <>{children}</>; // This component doesn't render anything
+  return <>{children}</>;
 };
 
 export default AuthMonitor;

@@ -6,7 +6,7 @@ from fastapi.routing import APIRoute
 from starlette.middleware.cors import CORSMiddleware
 
 from api.core.config import settings
-from api.routes import (login,\
+from api.routes import (judge, login,\
                         user,\
                         game,\
                         models,\
@@ -14,6 +14,8 @@ from api.routes import (login,\
                         health)
 from api.backend_ping_test import db_ping_server
 from api.cron import compute_leaderboard, check_model_tokens_usage
+from api.deps import close_database
+from api.utils import logger
 
 def custom_generate_unique_id(route: APIRoute) -> str:
     if len(route.tags) > 0:
@@ -35,6 +37,8 @@ async def lifespan(_app : FastAPI):
     # NOTE Server has started
     yield
     
+    logger.info(f"Closing Database Connection")
+    await close_database()
     # NOTE: if anything needs to be cleaned up put below here
 
 
@@ -55,9 +59,10 @@ if settings.all_cors_origins:
     )
 
 
-app.include_router(login.router, tags=["Login"])
+app.include_router(login.router)
 app.include_router(user.router,  tags=["User"])
 app.include_router(game.router, prefix="/game", tags=["Game"])
 app.include_router(models.router, prefix="/model", tags=["Model"])
 app.include_router(game_session.router)
+app.include_router(judge.router)
 app.include_router(health.router)

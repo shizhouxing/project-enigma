@@ -1,6 +1,6 @@
 import React from 'react';
 import { getGamesFromId } from '@/service/game';
-import { notFound, redirect } from 'next/navigation';
+import { redirect } from 'next/navigation';
 import type { Game, GameErrorResponse } from '@/types/game';
 import { GameHeader } from '@/components/game/header';
 import { GameDetails } from '@/components/game/details';
@@ -25,7 +25,7 @@ export default async function GamePage({ params }: GamePageProps) {
   }
 
   if (!game) {
-    notFound();
+    redirect('/game');
   }
 
   return (

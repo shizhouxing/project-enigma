@@ -3,33 +3,32 @@ import Link from "next/link";
 import { NoisePattern } from "@/components/noise_pattern";
 import { AuthForms } from "@/components/auth_form";
 import { checkUsername, login, signup } from "@/service/auth";
+import AuthMonitor from "@/hooks/useCookieCheck";
 
 export default async function AuthenticationPage() {
   async function handleUsernameSubmit(username: string) {
     "use server";
-    const isAvailable = await checkUsername(username);
-    return { step: isAvailable ? "signup" : "signin", username };
+    const response = await checkUsername(username);
+    if (response.status && response.status > 400){
+      return { step : "username", error : response.error }
+    }
+    return { step: response.available ? "signup" : "signin", username };
   }
 
-  async function handleSignIn(formData: FormData) {
+  async function handleSignIn(username: string, password: string) {
     "use server";
-    const result = await login(formData);
-    if (result.success) {
-      return { success: true };
-    }
-    return { success: false, message: result.message };
+    const result = await login(username, password);
+    return result;
   }
 
   async function handleSignUp(formData: FormData) {
     "use server";
     const result = await signup(formData);
-    if (!result.success) {
-      return { success: false, message: result.message };
-    }
-    return { success: true, step: "signin" };
+    return Object.assign({}, result, result.ok ? { step: "signin" } : {});
   }
 
   return (
+    <AuthMonitor>
     <div className="min-h-screen flex flex-col md:grid md:grid-cols-2 md:grid-flow-col">
       {/* Left section with testimonial - hidden on mobile, shown on md+ screens */}
       <div className="hidden md:flex bg-black p-8 flex-col justify-between relative overflow-hidden">
@@ -74,6 +73,7 @@ export default async function AuthenticationPage() {
                 onSignUp={handleSignUp}
                 error={[]}
               />
+              
 
               <p className="text-center text-xs sm:text-sm text-zinc-400 px-4">
                 By clicking continue, you agree to our{" "}
@@ -90,5 +90,6 @@ export default async function AuthenticationPage() {
         </div>
       </div>
     </div>
+    </AuthMonitor>
   );
 }

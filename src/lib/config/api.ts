@@ -1,13 +1,13 @@
 export const API_CONFIG = {
     ENDPOINTS : {
         AUTH: {
-            LOGIN: '/api/login/access-token',
-            VERIFY: '/api/verify-token'
+            LOGIN: '/api/login/',
+            VERIFY: '/api/token/'
           },
         USER : {
-            REGISTER: '/api/signup',
+            REGISTER: '/api/signup/',
             LOGOUT: '/api/logout',
-            AVAILABLE : '/api/available'
+            AVAILABLE : '/api/available-username'
         },
         GAME : '/api/game/'
     },

@@ -28,20 +28,19 @@ Usage:
     # Convert internal user to public response
     public_user = UserPublic.from_user(user)
 """
-
-from datetime import datetime, UTC
+from datetime import datetime
 from typing import Optional, Any, Literal, List, Union, Dict
-from pydantic import BaseModel, Field, ConfigDict, field_validator, HttpUrl
+from pydantic import BaseModel, Field, ConfigDict, field_validator, HttpUrl, EmailStr
 from bson import ObjectId
 
 # Base Message Model
 class Message(BaseModel):
     """Generic response message"""
-    status: Literal["success", "failed"] = "success"
+    status: int 
     message: Optional[str] = None
-    data: Optional[Any] = None
+    data: Optional[Any]    = None
 
-# Token Models
+# Token ======================================================
 class Token(BaseModel):
     """OAuth2 compatible token"""
     access_token: str
@@ -51,48 +50,39 @@ class TokenPayload(BaseModel):
     """JWT token payload"""
     sub: str  # user id
     exp: datetime
-    
-# User Models
-class UserBase(BaseModel):
-    """Base user properties"""
-    username: str = Field(
-        min_length=3,
+
+# ===========================================================
+
+# User ======================================================
+
+class UserRegister(BaseModel):
+    """User registration request model"""
+    username : Optional[str]   = Field(
+        min_length=1,
         max_length=50,
         description="Username for login"
     )
-    
+    email : Optional[EmailStr] = None
+    password: Optional[str]    = Field(
+        min_length=8,
+        description="Hashed password for user authentication")
+    image : Optional[Union[str, HttpUrl]] = None
+    provider : Optional[Literal["google"]] = None
+
     @field_validator('username')
-    def username_alphanumeric(cls, v: str) -> str:
+    def username_alphanumeric(cls, v: str | None) -> str:
+        print(v)
+        if v is None:
+            return v
         if not v.replace("_", "").isalnum():
             raise ValueError('Username must be alphanumeric, underscores allowed')
         return v
 
-class UserRegister(UserBase):
-    """User registration request model"""
-    password: str = Field(
-        min_length=8,
-        max_length=40,
-        description="Password for user authentication"
-    )
-
-class UserResponse(UserBase):
-    """User response model with public fields"""
-    id: str
-    created_at: datetime
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "id": "507f1f77bcf86cd799439011",
-                "username": "john_doe",
-                "created_at": "2024-01-01T00:00:00Z"
-            }
-        }
-
-class User(UserBase):
+class User(BaseModel):
     """Internal user model with full details"""
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
+        json_encoders = {ObjectId: str},
         json_schema_extra = {
             "example": {
                 "_id": "507f1f77bcf86cd799439011",
@@ -103,16 +93,31 @@ class User(UserBase):
         }
     )
     
-    id: ObjectId = Field(default_factory=ObjectId, alias="_id")
-    password: str = Field(
+    id: Union[ObjectId, str]  = Field(default_factory=ObjectId, alias="_id")
+    email : Optional[EmailStr] = None
+    username: Optional[str] = Field(
+        min_length=1,
+        max_length=50,
+        description="Username for login"
+    )
+    password: Optional[str] = Field(
         min_length=8,
         description="Hashed password for user authentication"
     )
-    access_token: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.now)
-    last_login : Optional[datetime] = None
-    last_signout : Optional[datetime] = None
-    icon : str
+    created_at: datetime                  = Field(default_factory=datetime.now)
+    access_token: Optional[str]           = None
+    last_login : Optional[datetime]       = None
+    last_signout : Optional[datetime]     = None
+    image : Optional[Union[str, HttpUrl]] = None
+    provider : Optional[Literal['google']]= None
+        
+    @field_validator('username')
+    def username_alphanumeric(cls, v: str | None) -> str:
+        if v is None:
+            return v
+        if not v.replace("_", "").isalnum():
+            raise ValueError('Username must be alphanumeric, underscores allowed')
+        return v
 
 
 class UserPublic(BaseModel):
@@ -126,97 +131,83 @@ class UserPublic(BaseModel):
             }
         }
     )
-    
-    id: str = Field(alias="_id")
-    username: str
+    username: str | None
+    image : str | HttpUrl | None
 
     @classmethod
     def from_user(cls, user: User) -> "UserPublic":
         """Convert internal user model to public user model"""
         return cls(
-            _id=str(user.id),
-            username=user.username
+            username=user.username,
+            image=user.image
         )
 
+
+# Judge ================================================
+class JudgeFunctionMetadata(BaseModel):
+    doc : Optional[str]
+    required_params : List[str]
+    optional_params : List[str]
+
+class JudgeFunctionAnnotations(BaseModel):
+    name : str
+    parameters : Dict[str, Any]
+    returns : Dict[str, Any]
+    metadata : JudgeFunctionMetadata
+    
+
+class JudgeFunction(BaseModel):
+    type : Literal['function']
+    function : JudgeFunctionAnnotations
+    
+
 class Judge(BaseModel):
-    id: ObjectId = Field(default_factory=ObjectId, alias="_id")
-    created_at: datetime = Field(default_factory=datetime.now)
+    id: ObjectId | str             = Field(default_factory=ObjectId, alias="_id")
+    created_at: datetime           = Field(default_factory=datetime.now)
     updated_at: Optional[datetime] = Field(default_factory=datetime.now)
     active : bool
-    sampler : Any
-    validator : Any # NOTE: set this to 
+    sampler : JudgeFunction
+    validator : JudgeFunction
+    
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
         json_encoders = {ObjectId: str},
-        json_schema_extra = {
-            "example": {
-                    "_id": "6723f3adf927e981a313ccbd0",
-                    "active": True,
-                    "created_at": "2024-10-31T04:23:51.135458",
-                    "updated_at": None,
-                    "sampler": {
-                        "type": "function",
-                        "function": {
-                            "name": "get_bad_word",
-                            "parameters": {},
-                            "return": {
-                                "type": "string"
-                            },
-                            "metadata": {
-                                "is_async": False,
-                                "doc": None,
-                                "required_params": [],
-                                "optional_params": []
-                            }
-                        }
-                    },
-                    "validator": {
-                        "type": "function",
-                        "function": {
-                            "name": "target",
-                            "parameters": {
-                                "source": {
-                                    "type": "string",
-                                    "description": "user output of injected prompt",
-                                    "required": True
-                                },
-                                "target": {
-                                    "type": "string",
-                                    "description": "the targeted prompt.",
-                                    "required": True
-                                },
-                                "regex": {
-                                    "type": "union",
-                                    "types": ["string", "Pattern", "null"],
-                                    "description": "Regular expression pattern to use for matching",
-                                    "required": False,
-                                    "default": None
-                                },
-                                "ignore_case": {
-                                    "type": "boolean",
-                                    "description": "Whether to ignore case when matching",
-                                    "required": False,
-                                    "default": False
-                                }
-                            },
-                            "return": {
-                                "type": "boolean",
-                                "description": "Whether the source matches the target"
-                            },
-                            "metadata": {
-                                "is_async": False,
-                                "doc": "Compare source and target strings using exact match or regex",
-                                "required_params": ["source", "target"],
-                                "optional_params": ["regex", "ignore_case"]
-                            }
-                        }
-                    }
-                }
-            }
-    )
+        populate_by_name=True,
+         json_schema_extra = {
+             "_id" : "507f1f77bcf86cd799439011",
+         })
+    
+class JudgePublic(BaseModel):
+    id: Optional[Union[ObjectId, str]] = None
+    created_at: Optional[datetime]     = None
+    updated_at: Optional[datetime]     = None
+    active : Optional[bool]            = None
+    sampler : Optional[JudgeFunction]  = None
+    validator : Optional[JudgeFunction]= None
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_encoders = {ObjectId: str},
+        populate_by_name=True,
+         json_schema_extra = {
+             "_id" : "507f1f77bcf86cd799439011",
+         })
+
+# ======================================================
+
+# Game =================================================
+
+class GameMetadata(BaseModel):
+    models_config : Dict[str, Any] = Field(alias="model_config")
+    game_config : Optional[Dict[str, Any]]
 
 class Game(BaseModel):
     """Game model for Game object"""
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_encoders = {ObjectId: str},
+        populate_by_name=True,
+    )
+
     id: ObjectId = Field(default_factory=ObjectId, alias="_id")
     judge_id: ObjectId
     title: str
@@ -228,72 +219,29 @@ class Game(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: Optional[datetime] = Field(default_factory=datetime.now)
     stars: List[str] = Field(...)
-    metadata: dict = Field(...)
+    metadata: Dict[str, Any]
     
+class GamePublic(BaseModel):
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
-        json_encoders = {ObjectId: str},
-        json_schema_extra = {
-            "example": {
-                "id": "507f1f77bcf86cd799439011",
-                "judge_id": "507f1f77bcf86cd799439011",
-                "title": "Bad Words",
-                "author": "LMSYS & Pliny",
-                "description": "...",
-                "image": "https://avatars.githubusercontent.com/u/66436953?v=4&size=64",
-                "created_at" : datetime.now(UTC),
-                "updated_at" : None,
-                "stars": 999,
-                "metadata": {
-                    "model_config": {
-                        "system_prompt": "",
-                        "temperature": 0.7,
-                        "max_tokens": 150,
-                        "tools_config": {
-                            "enabled": False,
-                            "tools": []
-                        },
-                    },
-                    "game_rules": {
-                        "timed": True,
-                        "time_limit": 90000, 
-                    },
-               }
-            }
-        }
+        populate_by_name=True,
     )
-
-
-class GamePublic(BaseModel):
-    title: str
-    author: List[str]
-    description: str
-    gameplay: Optional[str] = None  # Detailed gameplay description
-    objective: Optional[str] = None  # Description of the game's objective
-    image: Union[HttpUrl, str, None]
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-    stars: int
-    metadata: dict
-
-    @classmethod
-    def from_game(cls, game: Game) -> "GamePublic":
-        """Convert internal game model to public game model"""
-        return cls(
-            title=game.title,
-            author=game.author,
-            description=game.description,
-            gameplay=game.gameplay,
-            objective=game.objective,
-            image=game.image,
-            created_at=game.created_at,
-            updated_at=game.updated_at,
-            stars=len(game.stars),
-            metadata=game.metadata
-        )
+    id : Optional[str]                      = None
+    title: Optional[str]                    = None
+    judge : Optional[JudgePublic]           = None
+    author: Optional[List[str]]             = None
+    description: Optional[str]              = None
+    gameplay: Optional[str]                 = None  
+    objective: Optional[str]                = None
+    image: Optional[Union[HttpUrl, str]]    = None
+    created_at: Optional[datetime]          = None
+    updated_at: Optional[datetime]          = None
+    stars: Optional[int]                    = None
+    metadata: Optional[GameSessionMetadata] = None
 
 
 
+# Session =============================================
 class GameSession(BaseModel):
     """Session model for Session object"""
     id: Optional[ObjectId] = Field(default_factory=ObjectId, alias="_id")
@@ -301,6 +249,10 @@ class GameSession(BaseModel):
     game_id: ObjectId = Field(...)
     judge_id: ObjectId = Field(...)
     agent_id: ObjectId = Field(...)
+    user : Optional[User]
+    judge : Optional[Judge]
+    model : Optional[Model]
+
     description : Optional[str] = Field(...)
     history: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
     completed: bool = False
@@ -312,32 +264,7 @@ class GameSession(BaseModel):
 
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
-        json_encoders={ObjectId: str},
-        json_schema_extra={
-            "example": {
-                "session_id": "507f1f77bcf86cd799439011",
-                "user_id": "507f1f77bcf86cd799439012",
-                "game_id": "507f1f77bcf86cd799439013",
-                "judge_id": "507f1f77bcf86cd799439014",
-                "model_id": "507f1f77bcf86cd799439015",
-                "history": [
-                    {
-                        "role": "assistant",
-                        "content": "Hello, welcome to the game!"
-                    },
-                    {
-                        "role": "user",
-                        "content": "Hi, I'm ready to play!"
-                    }
-                ],
-                "completed": False,
-                "create_time": "2024-10-28T12:00:00Z",
-                "complete_time": None,
-                "outcome": None,
-                "shared": None
-            }
-        }
-    )
+        json_encoders={ObjectId: str})
 
 class GameSessionCreateResponse(BaseModel):
     """Response model for creating a new game session"""
@@ -363,57 +290,25 @@ class GameSessionCreateResponse(BaseModel):
             description=game.description
         )
 
-
-GameSession
+class GameSessionMetadata(GameMetadata):
+    kwargs : Optional[Dict[str, Any]] = {}
 
 class GameSessionPublic(BaseModel):
     id : Optional[str]
-    user_id : Optional[str]
+    user : Optional[UserPublic]
+    model : Optional[Model]
+    judge : Optional[Judge]
     history : List[Dict[str, Any]] 
-    completed: bool = False
+    completed: bool                    = False
     completed_time: Optional[datetime] = None
-    outcome: Optional[str] = None
-    user : Dict[str, Any]
-    model : Dict[str, Any]
-    judge : Dict[str, Any]
-    metadata : Dict[str, Any]
+    outcome: Optional[str]             = None
+    metadata : Optional[GameSessionMetadata]
     
-    @classmethod
-    def from_dict(cls, obj : Dict[str, Any]):
-        return cls(
-            id=str(obj.get("_id", None)),
-            user_id=str(obj.get("user_id", None)),
-            history=obj.get("history"),
-            completed=obj.get("completed"),
-            complete_time=obj.get("complete_time"),
-            outcome=obj.get("outcome"),
-            user=obj.get("user"),
-            model=obj.get("model"),
-            judge=obj.get("judge"),
-            metadata=obj.get("metadata")
-        )
-
-class GameSessionChatResponse(BaseModel):
-    """Response model for chatting in a game session"""
-    output: str
-    outcome: str
-      
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True,
-        json_encoders = {ObjectId: str},
-        json_schema_extra = {
-            "example": {
-                "model_output": "This is the response from the model.",
-                "outcome": "win"
-            }
-        }
-    )
-
 class GameSessionHistoryItem(BaseModel):
     """Model representing a single item in the game session history response."""
     session_id: str
-    outcome: Union[Literal['win', 'loss', 'forfeit'], None]
-    duration: Optional[float]
+    outcome: Optional[Union[Literal['win', 'loss', 'forfeit']]] = None
+    duration: Optional[float] = None
 
 
 class GameSessionHistoryResponse(BaseModel):
@@ -442,8 +337,7 @@ class GameSessionHistoryResponse(BaseModel):
         })
 
 
-
-
+# Model ============================================
 class ModelMetadata(BaseModel):
     endpoint : Optional[str]
     tools : Optional[List[Dict]]
@@ -464,16 +358,20 @@ class Model(BaseModel):
         json_encoders = {ObjectId: str})
 
 class ModelPublic(BaseModel):
-    name : str = Field(...)
-    provider : str = Field(...)
-    image : Union[str, HttpUrl] = Field(...)
+    name : Optional[str]
+    provider : Optional[str]
+    image : Optional[Union[str, HttpUrl]]
+    metadata : Optional[Union[ModelMetadata, Dict]]
 
     @classmethod
     def from_model(cls, model : Model) -> "ModelPublic":
         return cls(
             name=model.name,
             provider=model.provider,
-            image=model.image
+            image=model.image,
+            metadata=model.metadata
         )
+    
+
 
 # # NOTE if you need more Models then continue here

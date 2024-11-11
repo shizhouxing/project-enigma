@@ -17,14 +17,17 @@ Dependencies:
 - MongoDB for user storage
 - Pydantic for data validation
 """
-import re
+import io
+import httpx
+import base64
 
 from bson import ObjectId
 from bson.errors import InvalidId
 
 from pydantic import ValidationError
 
-from fastapi import APIRouter, Query, Depends, HTTPException, status
+from fastapi import APIRouter, Query, HTTPException, status
+from fastapi.responses import StreamingResponse, FileResponse
 
 from api import crud
 from api.deps import (
@@ -42,7 +45,7 @@ from api.models import (
 router = APIRouter()
 
 @router.post("/signup", response_model=Message)
-async def register_user(session : Database, user_in : UserRegister) -> Message:
+async def register_user(db : Database, user_in : UserRegister) -> Message:
     """
     Register a new user in the system.
     
@@ -50,7 +53,7 @@ async def register_user(session : Database, user_in : UserRegister) -> Message:
     It checks for username uniqueness before creating the new user account.
     
     Args:
-        session (Database): Database session for performing database operations
+        db (Database): Database session for performing database operations
         user_in (UserRegister): User registration data including username and password
         
     Returns:
@@ -60,24 +63,25 @@ async def register_user(session : Database, user_in : UserRegister) -> Message:
         HTTPException (400): If the username is already taken
     
     """
-    user = await crud.get_user_by_username(session=session, username=user_in.username)
+    user = await crud.find_user(db=db, 
+                                username=user_in.username)
     if user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="The user with this username already exists in the system.",
+            detail="Interrupt the user with this username already exists in the system.",
         )
     
-    await crud.create_user(session=session, user_create=user_in)
+    await crud.create_user(db=db, user_create=user_in)
     return Message(
-        message="Successfully create user",
-        status="success",
+        status=status.HTTP_201_CREATED,
+        message=f"{user_in.username} was successfully created",
         data=True
     )
 
 @router.post("/logout")
 async def logout(
-    user: CurrentUser,
-    session: Database
+    db: Database,
+    user: CurrentUser
 ) -> Message:
     """
     Logout the current user and invalidate their access token.
@@ -87,7 +91,7 @@ async def logout(
     
     Args:
         current_user (CurrentUser): The currently authenticated user
-        session (Database): Database session for performing database operations
+        db (Database): Database session for performing database operations
         
     Returns:
         Message: Success message indicating successful logout
@@ -96,7 +100,7 @@ async def logout(
         HTTPException (500): If an unexpected error occurs during logout
     """
     try:
-        await clear_user_token(session, user.id)
+        await clear_user_token(db, user.id)
         
     except Exception as e:
         raise HTTPException(
@@ -105,15 +109,15 @@ async def logout(
         )
     
     return Message(
-        message="Successfully logged out",
-        status="success",
+        message=f"{user.username} was successfully logged out",
+        status=status.HTTP_200_OK,
         data=True
     )
 
 
-@router.get("/available")
-async def is_available_username(session : Database,
-                                username : str = Query(..., min_length=3, max_length=50, pattern="^[a-zA-Z0-9_-]+$")) -> Message:
+@router.get("/available-username")
+async def is_available_username(db : Database,
+                                username : str = Query(..., min_length=1, max_length=50, pattern="^[a-zA-Z0-9_-]+$")) -> Message:
     """
     Check if a username is available for registration.
     
@@ -121,7 +125,7 @@ async def is_available_username(session : Database,
     requested username is already taken in the system.
     
     Args:
-        session (Database): Database session for performing database operations
+        db (Database): Database session for performing database operations
         username (str): The username to check for availability
         
     Returns:
@@ -130,22 +134,75 @@ async def is_available_username(session : Database,
     Raises:
         HTTPException (400): If the username is already taken
     """
-    user = await session.users.find_one({"username": re.compile(f"^{username}$", re.IGNORECASE)})
-    if user:
-        return Message(
-            message="Username is currently taken",
-            status="success",
-            data=False   
-        )
-    return Message(
-        message="Successful username is currently available",
-        status="success",
-        data=True
-    )
 
-@router.get("/{user_id}", response_model=UserPublic)
+
+    user = await crud.find_user(db=db, username=username)
+
+    if user is not None and user.provider is not None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="You must login via your provider."
+        )
+
+    message = f"{username} is currently available" if user is None\
+                else f"Username is currently taken"
+    
+    return Message(
+        message=message,
+        status=status.HTTP_200_OK,
+        data=user is None
+    )
+@router.post('/update-username', response_model=Message)
+async def update_username(db: Database, user: CurrentUser, username: str):
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not authenticated"
+        )
+    
+    # Check if username already exists
+    if await crud.get_user_by_username(db=db, username=username) is not None:
+        raise HTTPException(
+            detail="Username already exists",
+            status_code=status.HTTP_401_UNAUTHORIZED
+        )
+
+    try:
+        # Update the username
+        results = await db.users.update_one(
+            {"_id": user.id},
+            {"$set": {"username": username}}
+        )
+
+        if results.modified_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update user token"
+            )
+        
+        # Return success response
+        return Message(
+            status=200,
+            message="Username updated successfully",
+            data={
+                "user_id": str(user.id),
+                "username": username
+            }
+        )
+    
+    except Exception as e:
+        # Handle database errors
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update username"
+        )
+
+
+
+@router.get("/{id}", response_model=UserPublic)
 async def read_user_by_id(
-    user_id: str, session: Database
+    id: str, 
+    db: Database
 ) -> UserPublic:
     """
     Retrieve user information by their unique identifier.
@@ -154,8 +211,8 @@ async def read_user_by_id(
     user ID. It includes validation of the ID format and handles various error cases.
     
     Args:
-        user_id (str): The unique identifier of the user to retrieve
-        session (Database): Database session for performing database operations
+        id (str): The unique identifier of the user to retrieve
+        db (Database): Database session for performing database operations
         
     Returns:
         UserPublic: Public user information for the requested user
@@ -166,14 +223,14 @@ async def read_user_by_id(
         HTTPException (422): If the retrieved user data fails validation
     """
     try:
-        object_id = ObjectId(user_id)
+        object_id = ObjectId(id)
         
         # Query the database
-        user_dict = await session.users.find_one({"_id": object_id})
+        user_dict = await db.users.find_one({"_id": object_id})
         if user_dict is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User with id {user_id} not found"
+                detail=f"Interrupt user with id {id} not found"
             )
             
         # Convert to User model first for validation
@@ -185,10 +242,85 @@ async def read_user_by_id(
     except InvalidId:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid user ID format"
+            detail="Interrupt invalid user ID format"
         )
     except ValidationError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(e)
+        )
+    
+
+@router.get('/avatar/{user_id}')
+async def get_avatar(db: Database, user_id: str):
+    try:
+        # Retrieve the user from the database
+        user = await db.users.find_one({"_id": ObjectId(user_id)})
+
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User does not exist"
+            )
+
+        # Get the image path or URL
+        image : str = user.get("image")
+        if image is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Image not found"
+            )
+
+        # Check if the image is a URL
+        if image.startswith("https://"):
+            # Fetch the image content from the URL
+            async with httpx.AsyncClient() as client:
+                response = await client.get(image)
+                if response.status_code != 200:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Image could not be retrieved from the URL"
+                    )
+                
+                # Get the Content-Type from the response headers
+                content_type = response.headers.get("Content-Type", "")
+                if not content_type.startswith("image/"):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="URL does not point to a valid image"
+                    )
+
+                # Stream the image response back to the client with the detected MIME type
+                return StreamingResponse(
+                    response.iter_bytes(),
+                    media_type=content_type
+                )
+        elif image.startswith("http://"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Image could not be retrieved from non secure URLs"
+            )
+       
+        base64_data = None
+        if image.startswith("data:image"):
+            base64_data = image.split(",")[-1]
+        
+        image = base64.b64decode(base64_data)
+
+        # If image is a local path, serve it as a file
+        return StreamingResponse(
+            io.BytesIO(image),
+            media_type='image/webp'
+        )
+
+    except InvalidId:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{user_id} is an invalid user ID"
+        )
+    except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while retrieving the avatar"
         )
