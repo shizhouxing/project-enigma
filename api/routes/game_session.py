@@ -15,6 +15,7 @@ from api.models import (StreamResponse,
                         GameSessionHistoryItem, 
                         Message)
 from api.generative._registry import ModelRegistry
+from api.generative.llm.providers import OpenAICompletionResponse
 from api.judge._registry import registry
 from api.utils import handleStreamResponse
 
@@ -127,9 +128,11 @@ async def completion(
         metadata = current_session.metadata
         target = registry.get_validator(current_session.judge["validator"]["function"]\
                                         .get("name", None))
+        sampler = registry.get_sampler(current_session.judge["sampler"]["function"]
+                                       .get("name", None))
+        model_config = sampler().get("metadata", {}).get("model_config", None)
         
 
-        
         client = ModelRegistry.get_client(
                 model
             )
@@ -140,11 +143,14 @@ async def completion(
             # NOTE: need to handle it when something goes wrong
             updates = ["history"]
             calmative_token = ""
-            for token in client.generate(current_session.history, model):
+            for token in client.generate(current_session.history, model, model_config=model_config):
                 calmative_token += token
+
+                # NOTE: need to eventually support multiple models for this, not just openai
+                openai_response = OpenAICompletionResponse(response=token, metadata=metadata)
                 
                 if not current_session.outcome and\
-                   target(**{"source" : calmative_token } | metadata.get("kwargs", {}) ):
+                   target(**{"source" : openai_response } | metadata.get("kwargs", {}) ):
                     current_session.outcome = "win"
                     current_session.completed = True
                     current_session.completed_time = datetime.now(UTC) 

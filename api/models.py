@@ -146,8 +146,8 @@ class UserPublic(BaseModel):
 # Judge ================================================
 class JudgeFunctionMetadata(BaseModel):
     doc : Optional[str]
-    required_params : List[str]
-    optional_params : List[str]
+    required_params : List[Any]
+    optional_params : List[Any]
 
 class JudgeFunctionAnnotations(BaseModel):
     name : str
