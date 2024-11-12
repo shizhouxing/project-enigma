@@ -1,5 +1,5 @@
 from typing import Dict, Type, Any
-from .base import CompletionStrategy
+from .types import CompletionStrategy
 
 class CompletionFactory:
     """Factory for creating appropriate completion strategies"""

@@ -1,4 +1,4 @@
 
-from .openai import OpenAICompletionResponse, OpenAICompletionStrategy
+from .openai import OpenAICompletionResponse, OpenAICompletionStream, OpenAICompletionStrategy
 
-__all__ = ["OpenAICompletionResponse", "OpenAICompletionStrategy"]
+__all__ = ["OpenAICompletionResponse", "OpenAICompletionStream", "OpenAICompletionStrategy"]
