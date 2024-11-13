@@ -24,7 +24,7 @@ Dependencies:
 import re
 
 
-from typing import Optional, Literal, List, Union, AsyncGenerator
+from typing import Optional, List, Union, AsyncGenerator
 from datetime import datetime, UTC
 
 from fastapi import HTTPException, status
@@ -598,8 +598,7 @@ async def update_game_session(*,
 
     return {"message": "Session updated successfully"}
 
-async def get_sessions_for_user(user_id: str | ObjectId, 
-                                db: Database) -> List[GameSession]:
+async def get_sessions_for_user(user_id: str | ObjectId, db: Database, skip : int = 0, limit : int | None= None) -> List[GameSession]:
     """
     Get all game sessions for a specific user.
 
@@ -614,16 +613,21 @@ async def get_sessions_for_user(user_id: str | ObjectId,
 
         user_id = to_object_id(user_id)
 
-    except Exception:
+    except InvalidId:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid user_id format"
         )
 
-    sessions_data = await db.sessions.find({
+    query = db.sessions.find({
         "user_id": user_id,
         "completed": True
-    }).to_list(length=None)
+    }).skip(skip=skip)
+    
+    if limit is not None:
+        query = query.limit(limit=limit)
+        
+    sessions_data = await query.to_list(length=None)
 
     if not sessions_data:
         raise HTTPException(
@@ -631,6 +635,7 @@ async def get_sessions_for_user(user_id: str | ObjectId,
             detail="No history found"
         )
     
+
     return [GameSession(**session_data) for session_data in sessions_data]
 
 # =====================================================================
