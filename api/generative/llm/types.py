@@ -27,6 +27,7 @@ class CompletionMetadata:
     model : Optional[str]
     provider: str
     created : int
+    stream: bool
     usage: Optional[Dict[str, int]] = None
     capabilities: List[CompletionCapability] = field(default_factory=list)
 
@@ -57,12 +58,8 @@ class FunctionCallable(Protocol[T_Function]):
     def get_function_call(self) -> Optional[T_Function]:
         """Get function call information if present"""
         ...
-    
-    def get_available_functions(self) -> List[Dict[str, Any]]:
-        """Get list of available functions"""
-        ...
 
-class CompletionStrategy(ABC, Generic[T_Completion, T_Token]):
+class CompletionStrategy(ABC):
     """Base strategy for handling model completions"""
     
     @abstractmethod
@@ -71,7 +68,7 @@ class CompletionStrategy(ABC, Generic[T_Completion, T_Token]):
         messages: List[Dict[str, str]],
         stream: bool = True,
         **kwargs
-    ) -> CompletionResponse[T_Completion, T_Token]:
+    ) -> CompletionResponse:
         """Create a completion from the model"""
         pass
     

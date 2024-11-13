@@ -1,6 +1,6 @@
 import os
 from typing import Any, Dict, List
-from .base import CompletionResponse
+from .types import CompletionResponse
 from .factory import CompletionFactory
 from .providers import OpenAICompletionStrategy
 from ..registry import ModelRegistry

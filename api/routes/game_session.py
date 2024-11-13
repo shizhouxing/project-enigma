@@ -14,8 +14,8 @@ from api.models import (StreamResponse,
                         GameSessionPublic, 
                         GameSessionHistoryItem, 
                         Message)
-from api.generative._registry import ModelRegistry
-from api.judge._registry import registry
+from api.generative.registry import ModelRegistry
+from api.judge.registry import registry
 from api.utils import handleStreamResponse
 
 router = APIRouter()
@@ -125,7 +125,7 @@ async def completion(
         current_session.history.append({"role": "user", "content": prompt})
         model = current_session.model.get("name", None)
         metadata = current_session.metadata
-        target = registry.get_validator(current_session.judge["validator"]["function"]\
+        validator = registry.get_validator(current_session.judge["validator"]["function"]\
                                         .get("name", None))
         
 
@@ -140,11 +140,15 @@ async def completion(
             # NOTE: need to handle it when something goes wrong
             updates = ["history"]
             calmative_token = ""
-            for token in client.generate(current_session.history, model):
+            if metadata.get("kwargs", {}).get("models_config", {}).get("tools_config", {}).get("enabled", False):
+                stream = client.generate(current_session.history, model, tools=metadata.models_config.tools_config.tools)
+            else:
+                stream = client.generate(current_session.history, model)
+            for token in stream.iter_tokens():
                 calmative_token += token
                 
                 if not current_session.outcome and\
-                   target(**{"source" : calmative_token } | metadata.get("kwargs", {}) ):
+                   validator(**{"source" : calmative_token } | metadata.get("kwargs", {}) ):
                     current_session.outcome = "win"
                     current_session.completed = True
                     current_session.completed_time = datetime.now(UTC) 
@@ -155,6 +159,14 @@ async def completion(
                         event="message",
                         id="response",
                         data=json.dumps({"content" : token}))
+
+            functions_called = stream.get_function_call()
+            if functions_called and any(validator(**{"source" : calmative_token } | metadata.get("kwargs", {}) | {"function_call_name": func.name, "function_call_arguments": func.argument}) for func in functions_called):
+                current_session.outcome = "win"
+                current_session.completed = True
+                current_session.completed_time = datetime.now(UTC) 
+                updates = updates +\
+                        ["completed","outcome","completed_time"]
                 
             current_session.history.append({"role": "assistant", "content": calmative_token})
             await crud.update_game_session(session_id=session_id, 
