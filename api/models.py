@@ -33,6 +33,8 @@ from typing import Optional, Any, Literal, List, Union, Dict
 from pydantic import BaseModel, Field, ConfigDict, field_validator, HttpUrl, EmailStr
 from bson import ObjectId
 
+
+
 # Base Message Model
 class Message(BaseModel):
     """Generic response message"""
@@ -131,13 +133,15 @@ class UserPublic(BaseModel):
             }
         }
     )
-    username: str | None
-    image : str | HttpUrl | None
+    id : Optional[str] = None
+    username: str = None
+    image : Optional[str | HttpUrl] =None
 
     @classmethod
     def from_user(cls, user: User) -> "UserPublic":
         """Convert internal user model to public user model"""
         return cls(
+            id=str(user.id),
             username=user.username,
             image=user.image
         )
@@ -249,11 +253,10 @@ class GameSession(BaseModel):
     game_id: ObjectId = Field(...)
     judge_id: ObjectId = Field(...)
     agent_id: ObjectId = Field(...)
-    user : Optional[User]
-    judge : Optional[Judge]
-    model : Optional[Model]
-
-    description : Optional[str] = Field(...)
+    user : Optional[User] = None
+    judge : Optional[Judge] = None
+    model : Optional[Model] = None
+    description : Optional[str] = None
     history: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
     completed: bool = False
     create_time: datetime = Field(default_factory=datetime.now)
@@ -309,6 +312,7 @@ class GameSessionHistoryItem(BaseModel):
     session_id: str
     outcome: Optional[Union[Literal['win', 'loss', 'forfeit']]] = None
     duration: Optional[float] = None
+    last_message : Optional[datetime] = None
 
 
 class GameSessionHistoryResponse(BaseModel):

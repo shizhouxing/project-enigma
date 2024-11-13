@@ -9,7 +9,7 @@ functionality for the application.
 Routes:
 - POST /signup: User registration
 - POST /logout: User logout
-- GET /{user_id}: Retrieve user details
+- GET /{id}: Retrieve user details
 - GET /available: check if username is available
 
 Dependencies:
@@ -114,6 +114,52 @@ async def logout(
         data=True
     )
 
+@router.post('/update-username', response_model=Message)
+async def update_username(db: Database, user: CurrentUser, username: str):
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not authenticated"
+        )
+    
+    # Check if username already exists
+    if await crud.get_user_by_username(db=db, username=username) is not None:
+        raise HTTPException(
+            detail="Username already exists",
+            status_code=status.HTTP_401_UNAUTHORIZED
+        )
+
+    try:
+        # Update the username
+        results = await db.users.update_one(
+            {"_id": user.id},
+            {"$set": {"username": username}}
+        )
+
+        if results.modified_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update user token"
+            )
+        
+        # Return success response
+        return Message(
+            status=200,
+            message="Username updated successfully",
+            data={
+                "id": str(user.id),
+                "username": username
+            }
+        )
+    
+    except Exception as e:
+        # Handle database errors
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update username"
+        )
+
+
 
 @router.get("/available-username")
 async def is_available_username(db : Database,
@@ -152,51 +198,6 @@ async def is_available_username(db : Database,
         status=status.HTTP_200_OK,
         data=user is None
     )
-@router.post('/update-username', response_model=Message)
-async def update_username(db: Database, user: CurrentUser, username: str):
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not authenticated"
-        )
-    
-    # Check if username already exists
-    if await crud.get_user_by_username(db=db, username=username) is not None:
-        raise HTTPException(
-            detail="Username already exists",
-            status_code=status.HTTP_401_UNAUTHORIZED
-        )
-
-    try:
-        # Update the username
-        results = await db.users.update_one(
-            {"_id": user.id},
-            {"$set": {"username": username}}
-        )
-
-        if results.modified_count == 0:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to update user token"
-            )
-        
-        # Return success response
-        return Message(
-            status=200,
-            message="Username updated successfully",
-            data={
-                "user_id": str(user.id),
-                "username": username
-            }
-        )
-    
-    except Exception as e:
-        # Handle database errors
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update username"
-        )
-
 
 
 @router.get("/{id}", response_model=UserPublic)
@@ -223,10 +224,10 @@ async def read_user_by_id(
         HTTPException (422): If the retrieved user data fails validation
     """
     try:
-        object_id = ObjectId(id)
+        id = ObjectId(id)
         
         # Query the database
-        user_dict = await db.users.find_one({"_id": object_id})
+        user_dict = await db.users.find_one({"_id": id})
         if user_dict is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -237,7 +238,10 @@ async def read_user_by_id(
         user = User.model_validate(user_dict)
         
         # Convert to UserPublic for response
-        return UserPublic.from_user(user)
+        return UserPublic(
+                username=user.username,
+                image=user.image
+            )
         
     except InvalidId:
         raise HTTPException(
@@ -251,11 +255,11 @@ async def read_user_by_id(
         )
     
 
-@router.get('/avatar/{user_id}')
-async def get_avatar(db: Database, user_id: str):
+@router.get('/avatar/{id}')
+async def get_avatar(db: Database, id: str):
     try:
         # Retrieve the user from the database
-        user = await db.users.find_one({"_id": ObjectId(user_id)})
+        user = await db.users.find_one({"_id": ObjectId(id)})
 
         if user is None:
             raise HTTPException(
@@ -316,7 +320,7 @@ async def get_avatar(db: Database, user_id: str):
     except InvalidId:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"{user_id} is an invalid user ID"
+            detail=f"{id} is an invalid user ID"
         )
     except Exception as e:
         print(e)
