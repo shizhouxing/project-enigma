@@ -63,6 +63,7 @@ class ModelRegistry:
                 # Initialize client if requested
                 instance = client_class(
                             api_key=config.api_key,
+                            provider=config.provider,
                             base_url=config.base_url)
                 setattr(cls, f"_{config.name}_instance", instance)
             

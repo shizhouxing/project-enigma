@@ -1,6 +1,7 @@
+import json
 import re
 from typing import Union, Dict, Any
-from api.judge._registry import FunctionDecorator, registry
+from api.judge.registry import FunctionDecorator, registry
 
 __all__ = ["registry"]
 
@@ -26,8 +27,16 @@ def get_bad_word() -> Dict[str, Any]:
 
 
 @FunctionDecorator(function_type="validator")
-def no_refund_target(*, source : any):
-    ...
+def no_refund_target(*, target: str, function_call_name: str, function_call_arguments: str):
+    if function_call_name == "":
+        return False
+    try:
+        arguments = json.loads(function_call_arguments)
+        result = eval(target)(function_call_name, arguments)
+    except:
+        return False
+
+    return result
 
 @FunctionDecorator(function_type="sampler")
 def get_not_refund_scenario():
@@ -82,7 +91,9 @@ def get_not_refund_scenario():
                                             }]
                                         } 
                             }
-                }
+                },
+            "kwargs" : {
+                "target" : "lambda name, args: name == 'issue_refund' and args['amount'] > 0"
+                    }
           }
-
 
