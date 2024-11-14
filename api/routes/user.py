@@ -122,6 +122,13 @@ async def update_username(db: Database, user: CurrentUser, username: str):
             detail="User not authenticated"
         )
     
+    if user.username == username:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="You can not update your username to the same username"
+        )
+        
+
     # Check if username already exists
     if await crud.get_user_by_username(db=db, username=username) is not None:
         raise HTTPException(
@@ -202,22 +209,21 @@ async def is_available_username(db : Database,
 
 @router.get("/{id}", response_model=UserPublic)
 async def read_user_by_id(
-    id: str, 
+    id: str,
     db: Database
 ) -> UserPublic:
     """
     Retrieve user information by their unique identifier.
-    
     This endpoint fetches and returns public user information for the specified
     user ID. It includes validation of the ID format and handles various error cases.
-    
+
     Args:
         id (str): The unique identifier of the user to retrieve
         db (Database): Database session for performing database operations
-        
+
     Returns:
         UserPublic: Public user information for the requested user
-        
+
     Raises:
         HTTPException (400): If the user ID format is invalid
         HTTPException (404): If no user is found with the specified ID
@@ -226,23 +232,53 @@ async def read_user_by_id(
     try:
         id = ObjectId(id)
         
-        # Query the database
-        user_dict = await db.users.find_one({"_id": id})
-        if user_dict is None:
+        # Combined query using aggregation
+        pipeline = [
+            {"$match": {"_id": id}},
+            
+            # Lookup recent completed sessions
+            {"$lookup": {
+                "from": "sessions",
+                "let": {"user_id": "$_id"},
+                "pipeline": [
+                    {"$match": {
+                        "$expr": {"$eq": ["$user_id", "$$user_id"]},
+                        "completed": True
+                    }},
+                    {"$project": {
+                        "_id": {"$toString": "$_id"},
+                        "title": 1
+                    }},
+                    {"$limit": 5}
+                ],
+                "as": "history"
+            }},
+            
+            # Project only needed fields
+            {"$project": {
+                "username": 1,
+                "image": 1,
+                "history": 1
+            }}
+        ]
+
+        result = await db.users.aggregate(pipeline).to_list(None)
+        
+        if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Interrupt user with id {id} not found"
             )
-            
-        # Convert to User model first for validation
-        user = User.model_validate(user_dict)
+
+        user_dict = result[0]
         
         # Convert to UserPublic for response
         return UserPublic(
-                username=user.username,
-                image=user.image
-            )
-        
+            username=user_dict["username"],
+            image=user_dict["image"],
+            history=user_dict["history"]
+        )
+
     except InvalidId:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -253,7 +289,6 @@ async def read_user_by_id(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(e)
         )
-    
 
 @router.get('/avatar/{id}')
 async def get_avatar(db: Database, id: str):
