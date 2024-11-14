@@ -136,6 +136,7 @@ class UserPublic(BaseModel):
     id : Optional[str] = None
     username: str = None
     image : Optional[str | HttpUrl] =None
+    history : Optional[List[Any]] = None
 
     @classmethod
     def from_user(cls, user: User) -> "UserPublic":
@@ -201,8 +202,8 @@ class JudgePublic(BaseModel):
 # Game =================================================
 
 class GameMetadata(BaseModel):
-    models_config : Dict[str, Any] = Field(alias="model_config")
-    game_config : Optional[Dict[str, Any]]
+    models_config : Optional[Dict[str, Any]] = Field(alias="model_config", default=None)
+    game_config : Optional[Dict[str, Any]] = None
 
 class Game(BaseModel):
     """Game model for Game object"""
@@ -222,18 +223,20 @@ class Game(BaseModel):
     image: Union[HttpUrl, str, None] = None
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: Optional[datetime] = Field(default_factory=datetime.now)
-    stars: List[str] = Field(...)
-    metadata: Dict[str, Any]
+    stars: List[str] = [] 
+    metadata: Dict[str, Any] = {}
     
 class GamePublic(BaseModel):
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
         populate_by_name=True,
+        json_encoders = {ObjectId: str},
     )
-    id : Optional[str]                      = None
+    id : Optional[Union[str, ObjectId]]     = None
     title: Optional[str]                    = None
     judge : Optional[JudgePublic]           = None
     author: Optional[List[str]]             = None
+    model : Optional[ModelPublic]           = None
     description: Optional[str]              = None
     gameplay: Optional[str]                 = None  
     objective: Optional[str]                = None
@@ -248,6 +251,11 @@ class GamePublic(BaseModel):
 # Session =============================================
 class GameSession(BaseModel):
     """Session model for Session object"""
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_encoders={ObjectId: str})
+    
     id: Optional[ObjectId] = Field(default_factory=ObjectId, alias="_id")
     user_id: ObjectId = Field(...)
     game_id: ObjectId = Field(...)
@@ -263,11 +271,8 @@ class GameSession(BaseModel):
     completed_time: Optional[datetime] = None
     outcome: Optional[str] = None
     shared: Optional[HttpUrl] = None
+    title : Optional[str] = None
     metadata : Dict[str, Any]
-
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True,
-        json_encoders={ObjectId: str})
 
 class GameSessionCreateResponse(BaseModel):
     """Response model for creating a new game session"""
@@ -296,20 +301,36 @@ class GameSessionCreateResponse(BaseModel):
 class GameSessionMetadata(GameMetadata):
     kwargs : Optional[Dict[str, Any]] = {}
 
+
 class GameSessionPublic(BaseModel):
-    id : Optional[str]
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_encoders = {ObjectId: str},
+        json_schema_extra = {
+            "example": {
+                "session_id": "64b2c8f9b3e3b975c9d3e8d9",
+            }
+        }
+    )
+    id : Optional[Union[str | ObjectId]]
+    user_id: Optional[ObjectId] = None
+    game_id: Optional[ObjectId] = None
+    judge_id: Optional[ObjectId] = None
+    agent_id: Optional[ObjectId] = None
     user : Optional[UserPublic]
     model : Optional[Model]
     judge : Optional[Judge]
     history : List[Dict[str, Any]] 
-    completed: bool                    = False
-    completed_time: Optional[datetime] = None
-    outcome: Optional[str]             = None
-    metadata : Optional[GameSessionMetadata]
+    title : Optional[str]                    = None
+    completed_time: Optional[datetime]       = None
+    outcome: Optional[str]                   = None
+    metadata : Optional[GameSessionMetadata] = None
+    completed: bool                          = False
     
 class GameSessionHistoryItem(BaseModel):
     """Model representing a single item in the game session history response."""
     session_id: str
+    title : str
     outcome: Optional[Union[Literal['win', 'loss', 'forfeit']]] = None
     duration: Optional[float] = None
     last_message : Optional[datetime] = None
@@ -339,7 +360,9 @@ class GameSessionHistoryResponse(BaseModel):
                 ]
             }
         })
-
+    
+class GameSessionTitleRequest(BaseModel):
+    message_content : str
 
 # Model ============================================
 class ModelMetadata(BaseModel):
@@ -362,10 +385,10 @@ class Model(BaseModel):
         json_encoders = {ObjectId: str})
 
 class ModelPublic(BaseModel):
-    name : Optional[str]
-    provider : Optional[str]
-    image : Optional[Union[str, HttpUrl]]
-    metadata : Optional[Union[ModelMetadata, Dict]]
+    name : Optional[str] = None
+    provider : Optional[str] = None
+    image : Optional[Union[str, HttpUrl]] = None
+    metadata : Optional[Union[ModelMetadata, Dict]] = None
 
     @classmethod
     def from_model(cls, model : Model) -> "ModelPublic":
@@ -383,6 +406,7 @@ class StreamResponse(BaseModel):
     id : str
     retry : Optional[int] = None
     data : Dict[str, Any] | str
+
 
 
 # # NOTE if you need more Models then continue here

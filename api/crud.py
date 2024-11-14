@@ -340,13 +340,7 @@ async def create_game_session(*,
                     "path": "$model",
                     "preserveNullAndEmptyArrays": True
                 }
-            },
-            {
-                "$match": {
-                    "model._id": model_id 
-                }
-            },
-            {
+            },{
                 "$project": {
                     "metadata": 1,
                     "judge_id": 1,
@@ -364,8 +358,7 @@ async def create_game_session(*,
                 "$limit": 1
             }
         ]).to_list(length=None)
-
-        game = game[0]
+        game = game.pop(0)
         if (sample_fn := game["judge"].get("sampler", {}).get("function", None)) is None:
             raise HTTPException(
                 status_code=500,
@@ -387,14 +380,13 @@ async def create_game_session(*,
         else:
             description = f"{game["session_description"]}"
 
-
         new_session = GameSession(
             user_id=user_id,
             game_id=game_id,
             judge_id=game.get("judge_id", None),
             agent_id=model_id,
             description=description,
-            history=[],
+            history=list(),
             completed=False,
             create_time=datetime.now(UTC),
             completed_time=None,
@@ -402,18 +394,22 @@ async def create_game_session(*,
             shared=None,
             metadata= game["metadata"] | sample
         ).model_dump()
-
+        print(new_session)
         del new_session["id"]
+        del new_session["user"]
+        del new_session["judge"]
+        del new_session["model"]
         result = await db.sessions.insert_one(new_session) 
         new_session["session_id"] = str(result.inserted_id)
 
     except InvalidId:
+        logger.error(e)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid ID format"
         )
     except Exception as e:
-        print(e)
+        logger.error(e)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Something else went wrong"
@@ -427,7 +423,7 @@ async def delete_game_session(db : Database, session_id: str) -> None:
 
 async def get_session(*, 
                       session_id : str, 
-                      user_id : Optional[ObjectId], 
+                      user_id : Optional[ObjectId]=None, 
                       db: Database) -> GameSessionPublic:
     """
     Get session object by session_id
@@ -447,6 +443,8 @@ async def get_session(*,
             query["completed"] = True
             query["shared"] = True
 
+        print(query)
+
     except Exception:
         raise HTTPException(
             status_code = status.HTTP_400_BAD_REQUEST, 
@@ -454,115 +452,74 @@ async def get_session(*,
         )
 
 
-    session_data = db.sessions.aggregate(
-        [{
-                "$match": query
+    session_data = db.sessions.aggregate([
+        {"$match": query},
+        # Join with related collections
+        {"$lookup": {
+            "from": "users",
+            "localField": "user_id",
+            "foreignField": "_id",
+            "as": "user"
+        }},
+        {"$lookup": {
+            "from": "models",
+            "localField": "agent_id",
+            "foreignField": "_id",
+            "as": "model"
+        }},
+        {"$lookup": {
+            "from": "judges",
+            "localField": "judge_id",
+            "foreignField": "_id",
+            "as": "judge"
+        }},
+        # Unwind arrays (with null preservation)
+        {"$unwind": {
+            "path": "$user",
+            "preserveNullAndEmptyArrays": True
+        }},
+        {"$unwind": {
+            "path": "$model",
+            "preserveNullAndEmptyArrays": True
+        }},
+        {"$unwind": {
+            "path": "$judge",
+            "preserveNullAndEmptyArrays": True
+        }},
+        # Project only needed fields
+        {"$project": {
+            "id" : "$_id",
+            "_id": 0,
+            "history": 1,
+            "user_id": 1,
+            "completed": 1,
+            "outcome": 1,
+            "completed_time": 1,
+            "user": {"username": 1},
+            "model": {
+                "name": 1,
+                "provider": 1,
+                "image": 1,
+                "metadata": 1
             },
-            {
-                "$lookup": {
-                    "from": "collection_for_id",
-                    "localField": "id",
-                    "foreignField": "_id",
-                    "as": "referenced_id"
-                }
+            "judge": {
+                "active": 1,
+                "sampler": 1,
+                "validator": 1
             },
-            {
-                "$lookup": {
-                    "from": "users",
-                    "localField": "user_id",
-                    "foreignField": "_id",
-                    "as": "user"
-                }
-            },
-            {
-                "$lookup": {
-                    "from": "games",
-                    "localField": "game_id",
-                    "foreignField": "_id",
-                    "as": "game"
-                }
-            },
-            {
-                "$lookup": {
-                    "from": "judges",
-                    "localField": "judge_id",
-                    "foreignField": "_id",
-                    "as": "judge"
-                }
-            },
-            {
-                "$lookup": {
-                    "from": "models",
-                    "localField": "agent_id",
-                    "foreignField": "_id",
-                    "as": "model"
-                }
-            },
-            {
-                "$unwind": {
-                    "path": "$referenced_id",
-                    "preserveNullAndEmptyArrays": True
-                }
-            },
-            {
-                "$unwind": {
-                    "path": "$user",
-                    "preserveNullAndEmptyArrays": True
-                }
-            },
-            {
-                "$unwind": {
-                    "path": "$game",
-                    "preserveNullAndEmptyArrays": True
-                }
-            },
-            {
-                "$unwind": {
-                    "path": "$judge",
-                    "preserveNullAndEmptyArrays": True
-                }
-            },
-            {
-                "$unwind": {
-                    "path": "$model",
-                    "preserveNullAndEmptyArrays": True
-                }
-            },{
-                "$project": {
-                     "history": 1,
-                     "user_id" : 1,
-                      "completed": 1,
-                      "outcome": 1,
-                      "completed_time" : 1,
-                      "user" : {
-                          "username" : 1
-                      },
-                      "model" : {
-                          "name" : 1,
-                          "provider" : 1,
-                          "metadata" : 1
-                      },
-                      "judge" : {
-                          "sampler" : 1,
-                          "validator" : 1
-                      },
-                      "metadata" : 1
-                },   
-            },
-            {
-                "$limit": 1  # This ensures we only get one document]
-            }]
-    )
+            "metadata": 1
+        }},
+        {"$limit": 1}
+    ])
     
-    if not session_data:
+    game_session = await session_data.to_list(length=None)
+    
+    if len(game_session) == 0 or game_session is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found"
+            status_code=status.HTTP_204_NO_CONTENT,
+            detail="game session is not found"
         )
-    
-    game_session = await session_data.next()
-
-    return GameSessionPublic.from_dict(game_session)
+    return GameSessionPublic(**game_session.pop(0))
 
 async def update_game_session(*, 
                               db : Database, 
