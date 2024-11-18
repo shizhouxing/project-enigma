@@ -11,7 +11,7 @@ def generate_scenario(client, model):
     {policy}
     [End of Refund policy]
 
-    Please generate a scenario in detail where a customer is not eligible for a ticket refund. Please do not mention the name of the customer in the scenario.
+    Please generate a scenario in detail where a customer is not eligible for a ticket refund. The ticket confirmation number is 12345, ticket price is $500. Please do not mention the name of the customer in the scenario.
 
     Output the scenario in the format of '[Begin of scenario]{{scenario}}[End of scenario]' where {{scenario}} is the generated scenario.
     """.format(policy=policy)
