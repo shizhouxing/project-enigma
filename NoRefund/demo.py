@@ -4,7 +4,7 @@ from test_customer_agent import DemoSession
 # Initialize chat history
 initial_history = [
     {"role": "assistant", "content": "Hello! What can I help you today."},
-    {"role": "user", "content": "Hello! I want to request for full refund for my ticket with confirmation number 12345."}
+    {"role": "user", "content": "Hello! I want to request for full refund for my order with confirmation number 12345."}
 ]
 
 

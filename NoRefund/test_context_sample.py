@@ -1,20 +1,19 @@
 from openai_client import OpenAIClient
 import os
-from config import policy
 
-def generate_scenario(client, model):
+def generate_scenario(client, model, name, policy):
     ################ sample a context for the game
     context_sample_prompt = """
-    Below is the refund policy from an Airline company:
+    Below is the refund policy from {name}:
 
     [Begin of the policy]
     {policy}
     [End of Refund policy]
 
-    Please generate a scenario in detail where a customer is not eligible for a ticket refund. The ticket confirmation number is 12345, ticket price is $500. Please do not mention the name of the customer in the scenario.
+    Please generate a scenario in detail where a customer is not eligible for a refund. The order confirmation number is 12345 with price $500. Please do not mention the name of the customer in the scenario.
 
     Output the scenario in the format of '[Begin of scenario]{{scenario}}[End of scenario]' where {{scenario}} is the generated scenario.
-    """.format(policy=policy)
+    """.format(name=name, policy=policy)
 
     response = client.generate([{
         'role': 'user',

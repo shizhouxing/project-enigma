@@ -2,8 +2,9 @@ from openai_client import OpenAIClient
 import os
 import json
 from datetime import datetime
-from config import policy
+from config import list_policies
 from test_context_sample import generate_scenario
+import random
 
 
 class DemoSession:
@@ -22,7 +23,9 @@ class DemoSession:
         else:
             raise NotImplementedError
 
-        self.scenario = generate_scenario(self.client, self.model)
+        name, policy = random.choice(list(list_policies.items()))
+        self.scenario = generate_scenario(self.client, self.model, name, policy)
+        
 
         self.system_message = """
 You will be working as a customer service agent for RedTeam Airlines. The refund policy is listed below.
