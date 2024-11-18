@@ -43,7 +43,8 @@ if __name__ == "__main__":
 
         def bot(history):
             """Generate bot response and update chat history."""
-            bot_message, _= session.generate(history)
+            process_history = [{'role': a['role'], 'content': a['content']} for a in history]
+            bot_message, _= session.generate(process_history)
             history.append({'role': 'assistant', 'content': bot_message})
             return history
 
