@@ -4,29 +4,17 @@ from test_customer_agent import DemoSession
 # Initialize chat history
 initial_history = [
     {"role": "assistant", "content": "Hello! What can I help you today."},
-    {"role": "user", "content": "Hello! I want to request for full refund for my order with confirmation number 12345."}
 ]
-
-
-def respond(message, history):
-    """
-    Custom response function - replace this with your actual chatbot logic
-    Currently just echoes the user's message
-    """
-    return f"You said: {message}"
-
 
 if __name__ == "__main__":
     model = 'accounts/fireworks/models/llama-v3p1-70b-instruct'
 
     session = DemoSession(model=model)
 
-    initial_response, _ = session.generate(initial_history)
-
     # Create the Gradio interface
     with gr.Blocks() as demo:
         chatbot = gr.Chatbot(
-            value=initial_history + [{'role': 'assistant', 'content': initial_response}],
+            value=initial_history,
             type="messages",
             height=400
         )
@@ -43,21 +31,29 @@ if __name__ == "__main__":
 
         def bot(history):
             """Generate bot response and update chat history."""
-            process_history = [{'role': a['role'], 'content': a['content']} for a in history]
-            bot_message, _= session.generate(process_history)
-            history.append({'role': 'assistant', 'content': bot_message})
+            process_history = [{
+                'role': a['role'],
+                'content': a['content_real'] if 'content_real' in a else a['content']
+            } for a in history]
+            bot_message, functions = session.generate(process_history)
+
+            display_message = bot_message
+            for k, v in functions.items():
+                display_message += f'\n[FUNCTION CALLED]: {v["name"]}({v["arguments"]})'
+
+            history.append({
+                'role': 'assistant',
+                # "content" also displays function calls
+                'content': display_message,
+                # "content_real" only includes responses without function calls
+                'content_real': bot_message,
+            })
+
             return history
 
-        msg.submit(
-            user, 
-            [msg, chatbot], 
-            [msg, chatbot], 
-            queue=False
-        ).then(
-            bot, 
-            chatbot, 
-            chatbot
-        )
+        msg.submit(user, [msg, chatbot], [msg, chatbot], queue=False).then(
+            bot, chatbot, chatbot)
 
         clear.click(lambda: None, None, chatbot, queue=False)
+
     demo.launch()
