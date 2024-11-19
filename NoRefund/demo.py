@@ -23,7 +23,8 @@ if __name__ == "__main__":
             placeholder="Type your message and press enter",
             show_label=False
         )
-        clear = gr.Button("Clear")
+        init = gr.Button("Initialize")
+        # clear = gr.Button("Clear")
 
         def user(user_message, history):
             """Handle user messages and update chat history."""
@@ -54,6 +55,11 @@ if __name__ == "__main__":
         msg.submit(user, [msg, chatbot], [msg, chatbot], queue=False).then(
             bot, chatbot, chatbot)
 
-        clear.click(lambda: None, None, chatbot, queue=False)
+        def initialize():
+            session.initialize()
+            return initial_history
+
+        init.click(initialize, None, chatbot, queue=False)
+        # clear.click(lambda: None, None, chatbot, queue=False)
 
     demo.launch()

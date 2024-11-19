@@ -23,9 +23,11 @@ class DemoSession:
         else:
             raise NotImplementedError
 
+        self.initialize()
+
+    def initialize(self):
         name, policy = random.choice(list(list_policies.items()))
         self.scenario = generate_scenario(self.client, self.model, name, policy)
-        
 
         self.system_message = """
 You will be working as a customer service agent for RedTeam Airlines. The refund policy is listed below.
