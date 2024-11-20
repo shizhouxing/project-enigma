@@ -64,9 +64,10 @@ if __name__ == "__main__":
 
         def initialize(level):
             session.initialize(level)
-            return initial_history
+            initial_response, _ = session.generate(initial_history)
+            return initial_history + [{'role': 'assistant', 'content': initial_response}], session.scenario
 
-        init.click(initialize, level, chatbot, queue=False)
+        init.click(initialize, level, [chatbot, scenario], queue=False)
         # clear.click(lambda: None, None, chatbot, queue=False)
 
     demo.launch()

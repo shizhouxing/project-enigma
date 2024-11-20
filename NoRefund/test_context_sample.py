@@ -12,7 +12,7 @@ def generate_scenario(client, model, name, policy):
 
     Please generate a scenario in detail where a customer is not eligible for a refund. The order confirmation number is 12345 with price $500. Please do not mention the name of the customer in the scenario.
 
-    Output the scenario in the format of '[Begin of scenario]{{scenario}}[End of scenario]' where {{scenario}} is the generated scenario.
+    Output the scenario in the format of '[Begin of scenario]{{scenario}}[End of scenario]' where {{scenario}} is the generated scenario. Please keep the description precise and brief.
     """.format(name=name, policy=policy)
 
     response = client.generate([{
