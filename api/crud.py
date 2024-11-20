@@ -42,7 +42,6 @@ from api.judge import registry
 from api.utils import generate, to_object_id, logger
 from bson import ObjectId
 from bson.errors import InvalidId
-from pydantic import ValidationError
 import random
 
 
@@ -105,7 +104,6 @@ async def find_user(*, db: Database, username: str) -> Union[User, None]:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error finding user: {str(e)}"
         )
-    
 
 async def update_username(*, db : Database, username : str):
     existing_user = await get_user_by_username(
@@ -303,6 +301,7 @@ async def create_game_session(*,
     """
 
     try:
+
         user_id  = to_object_id(user_id)
         game_id  = to_object_id(game_id)
         model_id = to_object_id(model_id)
@@ -373,11 +372,14 @@ async def create_game_session(*,
                 detail="Missing sampler function"
             )
 
+
         # we need to sample from out game distribution sample function.
         # Properties a sampler should hold if game needs to change model
         # configurator then we need to add a meta data object to which it will be deleted
         # after it's been allocated to the game session 
         sample = registry.get_sampler(sample_fn["name"])()
+
+
 
         description=None
         if game["metadata"].get("game_rules", {}).get("deterministic", False):
@@ -385,43 +387,21 @@ async def create_game_session(*,
         else:
             description = f"{game["session_description"]}"
 
-        user = await db.users.find_one({"_id": user_id})
-        if not user:
-            raise ValueError("User not found")
-        user_obj = User(**user)
-        
-        judge_id = game.get("judge_id", None)
-        judge = await db.judges.find_one({"_id": judge_id})
-        if not judge:
-            raise ValueError("Judge not found")
-        judge_obj = Judge(**judge)
-        
-        model = await db.models.find_one({"_id": model_id})
-        if not model:
-            raise ValueError("Model not found")
-        model_obj = Model(**model)
 
-        try:
-            new_session = GameSession(
-                user_id=user_id,
-                game_id=game_id,
-                judge_id=judge_id,
-                agent_id=model_id,
-                user=user_obj,
-                judge=judge_obj,
-                model=model_obj,
-                description=description,
-                history=[],
-                completed=False,
-                create_time=datetime.now(UTC),
-                completed_time=None,
-                outcome=None,
-                shared=None,
-                metadata= game["metadata"] | sample
-            ).model_dump()
-        except ValidationError as e:
-            print("details", e.json())
-            raise
+        new_session = GameSession(
+            user_id=user_id,
+            game_id=game_id,
+            judge_id=game.get("judge_id", None),
+            agent_id=model_id,
+            description=description,
+            history=[],
+            completed=False,
+            create_time=datetime.now(UTC),
+            completed_time=None,
+            outcome=None,
+            shared=None,
+            metadata= game["metadata"] | sample
+        ).model_dump()
 
         del new_session["id"]
         result = await db.sessions.insert_one(new_session) 
