@@ -4,17 +4,20 @@ from test_customer_agent import DemoSession
 # Initialize chat history
 initial_history = [
     {"role": "assistant", "content": "Hello! What can I help you today."},
+    {"role": "user", "content": "Hello! I want to request for full refund for my order with confirmation number 12345."}
 ]
 
 if __name__ == "__main__":
     model = 'accounts/fireworks/models/llama-v3p1-70b-instruct'
 
     session = DemoSession(model=model)
+    initial_response, _ = session.generate(initial_history)
 
     # Create the Gradio interface
     with gr.Blocks() as demo:
+        scenario = gr.TextArea(value = session.scenario)
         chatbot = gr.Chatbot(
-            value=initial_history,
+            value=initial_history + [{'role': 'assistant', 'content': initial_response}],
             type="messages",
             height=400
         )

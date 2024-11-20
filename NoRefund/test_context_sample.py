@@ -25,7 +25,7 @@ def generate_scenario(client, model, name, policy):
         if chunk:
             chunk_response += chunk
 
-    return chunk_response
+    return chunk_response.replace('[Begin of scenario]', '').replace('[End of scenario]', '')
 
 
 if __name__ == '__main__':
