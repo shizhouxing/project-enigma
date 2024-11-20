@@ -35,8 +35,8 @@ async def test_mongo_connection(test_db):
 @pytest.mark.asyncio
 async def test_create_bad_words_game_session(test_db):
     """Test the process of creating a game session."""
-    username = ""
-    password = ""
+    username = "LVivona"
+    password = "5475726e696e67436f6d706c65746541474921"
     game_id = str(ObjectId("672308fb2c5a75e6d63e2d08"))
 
     async with AsyncClient(app=app, base_url="http://testserver") as async_client:
