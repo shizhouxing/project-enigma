@@ -23,6 +23,8 @@ if __name__ == "__main__":
             placeholder="Type your message and press enter",
             show_label=False
         )
+        submit = gr.Button("Submit")
+        level = gr.Dropdown(session.get_levels(), label='Select level')
         init = gr.Button("Initialize")
         # clear = gr.Button("Clear")
 
@@ -52,14 +54,16 @@ if __name__ == "__main__":
 
             return history
 
+        submit.click(user, [msg, chatbot], [msg, chatbot], queue=False).then(
+            bot, chatbot, chatbot)
         msg.submit(user, [msg, chatbot], [msg, chatbot], queue=False).then(
             bot, chatbot, chatbot)
 
-        def initialize():
-            session.initialize()
+        def initialize(level):
+            session.initialize(level)
             return initial_history
 
-        init.click(initialize, None, chatbot, queue=False)
+        init.click(initialize, level, chatbot, queue=False)
         # clear.click(lambda: None, None, chatbot, queue=False)
 
     demo.launch()
