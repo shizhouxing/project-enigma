@@ -387,12 +387,31 @@ async def create_game_session(*,
         else:
             description = f"{game["session_description"]}"
 
+        user = await db.users.find_one({"_id": user_id})
+        if not user:
+            raise ValueError("User not found")
+        user_obj = User(**user)
+        
+        judge_id = game.get("judge_id", None)
+        judge = await db.judges.find_one({"_id": judge_id})
+        if not judge:
+            raise ValueError("Judge not found")
+        judge_obj = Judge(**judge)
+        
+        model = await db.models.find_one({"_id": model_id})
+        if not model:
+            raise ValueError("Model not found")
+        model_obj = Model(**model)
+
 
         new_session = GameSession(
             user_id=user_id,
             game_id=game_id,
-            judge_id=game.get("judge_id", None),
+            judge_id=judge_id,
             agent_id=model_id,
+            user=user_obj,
+            judge=judge_obj,
+            model=model_obj,
             description=description,
             history=[],
             completed=False,
