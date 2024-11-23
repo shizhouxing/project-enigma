@@ -1,5 +1,5 @@
 from api.utils import repeat_every, logger
-
+from api.deps import get_database
 
 @repeat_every(seconds=60, logger=logger)
 def check_model_tokens_usage():
@@ -18,4 +18,20 @@ def compute_leaderboard():
     # run job
     
 
-    
+@repeat_every(seconds=60, logger=logger)
+async def history_garbage_collection():
+    """
+        function just run a query within the backend 
+        to clean up any forfeited games or game user 
+        was afk
+    """
+    db = await get_database()
+    result = await db.sessions.delete_many({
+        "$or": [
+            {"history": { "$size": 0 }},
+            {"history": { "$exists": False }}
+        ]
+    })
+
+    if result.deleted_count == 0:
+        logger.info("Currently no empty sessions")
