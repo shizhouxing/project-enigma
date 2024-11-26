@@ -1,3 +1,5 @@
+import os
+import json
 import gradio as gr
 from test_customer_agent import DemoSession
 
@@ -6,6 +8,7 @@ initial_history = [
     {"role": "assistant", "content": "Hello! What can I help you today."},
     {"role": "user", "content": "Hello! I want to request for full refund for my order with confirmation number 12345."}
 ]
+
 
 if __name__ == "__main__":
     model = 'accounts/fireworks/models/llama-v3p1-70b-instruct'
@@ -54,6 +57,9 @@ if __name__ == "__main__":
                 # "content_real" only includes responses without function calls
                 'content_real': bot_message,
             })
+
+            with open(os.path.join('history', f'{session.timestamp}.json'), 'w') as file:
+                file.write(json.dumps(history, indent=4))
 
             return history
 
