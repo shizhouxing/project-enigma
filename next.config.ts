@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
+  devIndicators: {
+    appIsrStatus: false,
+  },
   images: {
     remotePatterns: [
         {
@@ -14,20 +18,12 @@ const nextConfig: NextConfig = {
   rewrites: async () => {
     return [
       {
-        source : "/api/game",
-        destination : 
-          process.env.NODE_ENV === "development"
-          ? "http://127.0.0.1:8000/game/"
-          : "game/",
-      },
-      {
         source: "/api/:path*",
         destination:
           process.env.NODE_ENV === "development"
             ? "http://127.0.0.1:8000/:path*"
-            : ":path*",
+            : `${process.env.BACKEND_HOST}/:path*`,
       },
-
     ];
   },
 
