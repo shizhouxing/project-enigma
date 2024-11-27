@@ -1,325 +1,229 @@
 "use client";
 
+import React, { useEffect, useState, useReducer, useContext } from "react";
 import { useNotification } from "@/components/toast";
-import { logout as fetchLogout } from "@/service/auth";
-import { deleteSession } from "@/service/session";
-import { getUser, pinGame, unpinGame } from "@/service/user";
 import { useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import {
+  getUser,
+  pinGame,
+  unpinGame,
+  logout as fetchLogout,
+} from "@/service/user";
+import { deleteSession } from "@/service/session";
 
-// Define types for the user state
+// Types
 interface UserState {
-  chat: string | null;
   id: string | null;
   username: string | null;
   image: string | null;
   history: { _id: string; title: string }[];
-  pinned: any;
+  pinned: any[];
 }
 
-// Define types for the actions
 type UserAction =
-  | {
-      type: "SET_USER";
-      payload: {
-        id: string | null;
-        username: string | null;
-        image: string | null;
-        pinned: any;
-        history: { _id: string; title: string }[];
-      };
-    }
-  | {
-      type: "PIN_GAME";
-      payload: {
-        id: string | null;
-        image: string | null;
-        title: string | null;
-      };
-    }
-  | {
-      type: "PUSH_SESSION";
-      payload: {
-        _id: string;
-        title: string;
-      };
-    }
-  | {
-      type: "POP_SESSION";
-      payload: {
-        _id: string;
-      };
-    }
-  | {
-      type: "UNPIN_GAME";
-      payload: {
-        id: string | null;
-      };
-    }
-  // Appearance
+  | { type: "SET_USER"; payload: UserState }
+  | { type: "PIN_GAME"; payload: { id: string; image: string; title: string } }
+  | { type: "UNPIN_GAME"; payload: { id: string } }
+  | { type: "PUSH_SESSION"; payload: { _id: string; title: string } }
+  | { type: "POP_SESSION"; payload: { _id: string } }
   | { type: "UPDATE_USERNAME"; payload: string | null }
   | { type: "UPDATE_IMAGE"; payload: string | null }
   | { type: "CLEAR_USER" };
 
-// Define type for the context
 interface UserContextType {
   state: UserState;
   dispatch: React.Dispatch<UserAction>;
   isLoading: boolean;
-  setIsLoading: React.Dispatch<boolean>;
   handlePin: (id: string, image: string, title: string) => Promise<void>;
   handleUnpin: (id: string) => Promise<void>;
-  handleSessionPush: (session: { title: string; _id: string }) => Promise<void>;
-  handleSessionPop: (_id: string) => Promise<void>;
   logout: () => Promise<void>;
+  handleSessionPush: (session: { title: string; _id: string }) => void;
+  handleSessionPop: (_id: string) => Promise<void>;
 }
 
-// Create the context with initial undefined value
-const UserContext = React.createContext<UserContextType | undefined>(undefined);
+// Initial State
+const initialState: UserState = {
+  id: null,
+  username: null,
+  image: null,
+  pinned: [],
+  history: [],
+};
 
-// Reducer function
+// Reducer
 function userReducer(state: UserState, action: UserAction): UserState {
   switch (action.type) {
     case "SET_USER":
-      return {
-        chat: null,
-        id: action.payload.id,
-        username: action.payload.username,
-        image: action.payload.image,
-        history: action.payload.history,
-        pinned: action.payload.pinned,
-      };
+      return { ...action.payload };
     case "PUSH_SESSION":
-      return {
-        ...state,
-        history: [action.payload, ...state.history],
-      };
+      return { ...state, history: [action.payload, ...state.history] };
     case "POP_SESSION":
       return {
         ...state,
         history: state.history.filter(
-          (item: { _id: string; title: string }) =>
-            item._id !== action.payload._id
+          (item) => item._id !== action.payload._id
         ),
       };
     case "UPDATE_USERNAME":
-      return {
-        ...state,
-        username: action.payload,
-      };
+      return { ...state, username: action.payload };
     case "UPDATE_IMAGE":
-      return {
-        ...state,
-        image: action.payload,
-      };
+      return { ...state, image: action.payload };
     case "CLEAR_USER":
-      return {
-        ...state,
-        id: null,
-        username: null,
-        image: null,
-        history: [],
-        pinned: [],
-      };
+      return { ...initialState };
     case "PIN_GAME":
-      return {
-        ...state,
-        pinned: [...state.pinned, action.payload],
-      };
+      return { ...state, pinned: [...state.pinned, action.payload] };
     case "UNPIN_GAME":
       return {
         ...state,
-        pinned: state.pinned.filter(
-          (item: { id: string }) => action.payload.id != item.id
-        ),
+        pinned: state.pinned.filter((item) => item.id !== action.payload.id),
       };
     default:
       return state;
   }
 }
 
-// Props type for the provider
-interface UserProviderProps {
-  children: React.ReactNode;
-}
+// Context
+const UserContext = React.createContext<UserContextType | undefined>(undefined);
 
-// Provider component
-function UserProvider({ children }: UserProviderProps) {
+// Provider
+function UserProvider({ children }: { children: React.ReactNode }) {
   const notification = useNotification();
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [state, dispatch] = React.useReducer(userReducer, {
-    chat: null,
-    id: null,
-    username: null,
-    image: null,
-    pinned: [],
-    history: [],
-  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [state, dispatch] = useReducer(userReducer, initialState);
 
   useEffect(() => {
-    const handleToken = async () => {
+    const fetchUserData = async () => {
       try {
         const response = await getUser();
-        if (response.ok) {
-          dispatch({
-            type: "SET_USER",
-            payload: {
-              id: response.id ?? null,
-              username: response.username ?? null,
-              image: response.image ?? null,
-              history: response.history ?? [],
-              pinned: response.pinned ?? null,
-            },
-          });
-        } else {
-          dispatch({
-            type: "CLEAR_USER",
-          });
-        }
+        dispatch({
+          type: response.ok ? "SET_USER" : "CLEAR_USER",
+          payload: response.ok
+            ? {
+                id: response.id ?? null,
+                username: response.username ?? null,
+                image: response.image ?? null,
+                history: response.history ?? [],
+                pinned: response.pinned ?? [],
+              }
+            : initialState,
+        });
       } catch (error) {
-        throw Error("Something happen within the backend.");
+        notification.showError("Failed to fetch user data");
       } finally {
         setIsLoading(false);
       }
     };
 
-    handleToken();
+    fetchUserData();
   }, []);
 
-  const handlePin = async (id: string, image: string, title: string) => {
-    const cookies = document.cookie.split(";");
-    const hasAuthToken = cookies.some((cookie) =>
-      cookie.trim().startsWith("sessionKey=")
-    );
+  const checkAuthorization = () => {
+    const hasAuthToken = document.cookie
+      .split(";")
+      .some((cookie) => cookie.trim().startsWith("sessionKey="));
 
     if (!hasAuthToken) {
       notification.showWarning("Authorization required");
-      return;
+      return false;
     }
+    return true;
+  };
 
-    const response = await pinGame(id);
+  const handlePin = async (id: string, image: string, title: string) => {
+    if (!checkAuthorization()) return;
+
     setIsLoading(true);
+    const response = await pinGame(id);
+
     if (response.ok) {
       notification.showSuccess(`${title} was pinned to sidebar`);
       dispatch({
         type: "PIN_GAME",
-        payload: {
-          id,
-          image,
-          title,
-        },
+        payload: { id, image, title },
       });
     } else {
-      if (response.status == 401) {
-        notification.showWarning(response.message ?? "Authorization required");
-      } else {
-        notification.showError(
-          `Something went wrong, ${title} was not pinned to sidebar`
-        );
-      }
+      notification.showError(
+        response.status === 401
+          ? response.message ?? "Authorization required"
+          : `Something went wrong, ${title} was not pinned to sidebar`
+      );
     }
     setIsLoading(false);
   };
 
   const handleUnpin = async (id: string) => {
-    const cookies = document.cookie.split(";");
-    const hasAuthToken = cookies.some((cookie) =>
-      cookie.trim().startsWith("sessionKey=")
-    );
+    if (!checkAuthorization()) return;
 
-    if (!hasAuthToken) {
-      notification.showWarning("Authorization required");
-      return;
-    }
-
-    const response = await unpinGame(id);
     setIsLoading(true);
+    const response = await unpinGame(id);
+
     if (response.ok) {
-      notification.showSuccess(`Game was successfully un-pinned`);
-      dispatch({
-        type: "UNPIN_GAME",
-        payload: {
-          id,
-        },
-      });
+      notification.showSuccess("Game was successfully un-pinned");
+      dispatch({ type: "UNPIN_GAME", payload: { id } });
     } else {
-      if (response.status == 401) {
-        notification.showWarning(response.message ?? "Authorization required");
-      } else {
-        notification.showError(
-          `Something went wrong, when game was not un-pinned to sidebar`
-        );
-      }
+      notification.showError(
+        response.status === 401
+          ? response.message ?? "Authorization required"
+          : "Something went wrong when un-pinning game"
+      );
     }
     setIsLoading(false);
   };
 
   const logout = async () => {
-    const cookies = document.cookie.split(";");
-    const hasAuthToken = cookies.some((cookie) =>
-      cookie.trim().startsWith("sessionKey=")
-    );
-
-    if (!hasAuthToken) {
-      notification.showWarning("Authorization required");
+    if (!checkAuthorization()) {
       router.push("/login");
       return;
     }
 
     setIsLoading(true);
     const response = await fetchLogout();
+
     if (response.ok) {
       notification.showSuccess(`${state.username} has successfully signed out`);
-      dispatch({
-        type: "CLEAR_USER",
-      });
+      dispatch({ type: "CLEAR_USER" });
     } else {
       notification.showError(
         `Something went wrong, ${state.username} was not signed out`
       );
     }
+
     setIsLoading(false);
     router.push("/login");
-  };
-
-  const handleSessionPush = (session: { title: string; _id: string }) => {
-    dispatch({ type: "PUSH_SESSION", payload: session });
   };
 
   const handleSessionPop = async (_id: string) => {
     try {
       const result = await deleteSession(_id);
-
-      if (result.ok) dispatch({ type: "POP_SESSION", payload: { _id } });
-      else {
-        throw Error("Could not remove session, Try Again");
+      if (result.ok) {
+        dispatch({ type: "POP_SESSION", payload: { _id } });
+      } else {
+        notification.showError("Could not remove session, Try Again");
       }
     } catch (error) {
       notification.showError("Could not remove session, Try Again");
     }
-
-    return;
   };
 
   const value = {
     state,
     dispatch,
     isLoading,
-    setIsLoading,
     handlePin,
     handleUnpin,
     logout,
-    handleSessionPush,
+    handleSessionPush: (session: { title: string; _id: string }) =>
+      dispatch({ type: "PUSH_SESSION", payload: session }),
     handleSessionPop,
   };
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
 }
 
-// Custom hook for using the context
+// Custom hook
 function useUser() {
-  const context = React.useContext(UserContext);
+  const context = useContext(UserContext);
   if (context === undefined) {
     throw new Error("useUser must be used within a UserProvider");
   }

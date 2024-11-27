@@ -79,58 +79,6 @@ export async function signup(formData: FormData): Promise<ActionResponse> {
   }
 }
 
-export async function logout(): Promise<{ ok: boolean; error?: string }> {
-  const cookieStore = await cookies();
-  const authToken = cookieStore.get("sessionKey");
-
-  if (!authToken) {
-    return { ok: false, error: "Token does not exist" };  // Indicate missing token
-  }
-
-  const url = new URL(
-    API_CONFIG.ENDPOINTS.USER.LOGOUT,
-    process.env.FRONTEND_HOST
-  );
-
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${authToken.value}`,
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      // Custom error message based on response status
-      return {
-        ok: false,
-        error:
-          response.status === 401
-            ? "Unauthorized: Invalid token"
-            : `Error: ${response.statusText} (${response.status})`,
-      };
-    }
-
-    await handleResponse(response);
-    cookieStore.delete("sessionKey");  // Remove the token from cookies
-
-    return { ok: true };  // Indicate successful logout
-  } catch (error) {
-    if (error instanceof TypeError) {
-      console.error("Network error or invalid request:", error.message);
-      return { ok: false, error: "Network error or invalid request" };
-    } else if (error instanceof Error) {
-      console.error("Logout error:", error.message);
-      return { ok: false, error: error.message };
-    }
-
-    // Catch-all for other types of errors
-    console.error("Unexpected error:", error);
-    return { ok: false, error: "An unexpected error occurred" };
-  }
-}
-
 export async function validateToken(): Promise<
   { ok: boolean; id? : string; username?: string; image?: string; error?: string }
 > {
