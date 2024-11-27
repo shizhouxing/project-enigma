@@ -34,9 +34,9 @@ class Settings(BaseSettings):
     )
     
     API_V1_STR: str = "/api/v1"
-    SECRET_KEY: str = secrets.token_urlsafe(32)
+    SECRET_KEY: str = os.getenv("SECRET_KEY", secrets.token_urlsafe(32))
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 30
-    FRONTEND_HOST: str = "http://localhost:3000"
+    FRONTEND_HOST: str = os.getenv("FRONTEND_HOST","http://localhost:3000")
     ENVIRONMENT: Literal["local", "staging", "production"] = "local"
     
     BACKEND_CORS_ORIGINS: Annotated[
@@ -51,22 +51,22 @@ class Settings(BaseSettings):
             self.FRONTEND_HOST
         ]
     
-    PROJECT_NAME: str = "ProjectNothing"
+    PROJECT_NAME: str = os.getenv("PROJECT_NAME", "RedArena")
     SENTRY_DSN: HttpUrl | None = None
     
     # MongoDB Settings
-    MONGODB_USER: str = ""
-    MONGODB_NAME: str = "Cluster0"
-    MONGODB_PASSWORD: str = ""
-    MONGODB_HOST: str = "cluster0.6dueq.mongodb.net"
-    MONGODB_PROTOCOL: str = "mongodb"  # Can be "mongodb" or "mongodb+srv"
-    MONGODB_OPTIONS: str = "retryWrites=true&w=majority"
+    MONGODB_USER: str = os.getenv("MONGODB_USER", "")
+    MONGODB_NAME: str = os.getenv("MONGODB_NAME", "Cluster0")
+    MONGODB_PASSWORD: str = os.getenv("MONGODB_PASSWORD", "")
+    MONGODB_HOST: str = os.getenv("MONGODB_HOST", "cluster0.6dueq.mongodb.net")
+    MONGODB_PROTOCOL: str = os.getenv("MONGODB_PROTOCOL","mongodb")  # Can be "mongodb" or "mongodb+srv"
+    MONGODB_OPTIONS: str = os.getenv("MONGODB_OPTIONS", "retryWrites=true&w=majority")
     
 
     # Google OAuth
-    GOOGLE_CLIENT_ID : str = ""
-    GOOGLE_REDIRECT_URI : str = ""
-    GOOGLE_CLIENT_SECRET : str = ""
+    GOOGLE_CLIENT_ID : str = os.getenv("GOOGLE_CLIENT_ID", "")
+    GOOGLE_REDIRECT_URI : str = os.getenv("GOOGLE_REDIRECT_URI", "")
+    GOOGLE_CLIENT_SECRET : str = os.getenv("GOOGLE_CLIENT_SECRET", "")
 
     @computed_field
     @property
