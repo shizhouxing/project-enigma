@@ -133,7 +133,7 @@ export function AppSidebar() {
                   <SidebarMenuItem
                     key={`games-${game.id}`}
                     className={cn(
-                      "flex items-center px-1 py-1 cursor-pointer hover:bg-accent rounded-lg transition-colors"
+                      "flex items-center px-0 py-1 cursor-pointer hover:bg-accent rounded-lg transition-colors"
                     )}
                   >
                     <SidebarMenuButton
@@ -197,7 +197,7 @@ export function AppSidebar() {
       <SidebarContent>
         <ScrollArea className=" -mt-3 h-[calc(100vh-10rem)]">
           <SidebarGroup>
-            <SidebarGroupLabel className=" font-bold">
+            <SidebarGroupLabel className="font-bold select-none cursor-default">
               Recents
             </SidebarGroupLabel>
 
@@ -207,14 +207,14 @@ export function AppSidebar() {
                   <div
                     key={chat._id}
                     className={cn(
-                      "flex items-center gap-2 p-2 cursor-pointer hover:bg-accent rounded-lg transition-colors group",
+                      "flex items-center gap-2 px-2 py-[0.3rem] cursor-pointer hover:bg-accent rounded-lg transition-colors group",
                       pathname === `/c/${chat._id}` && "bg-zinc-900"
                     )}
                     onClick={() => {
                       router.push(`/c/${chat._id}`);
                     }}
                   >
-                    <MessagesSquare className="h-4 w-4 ml-1 text-muted-foreground" />
+                    <MessagesSquare className="h-[0.9rem] w-[0.9rem] ml-1 text-muted-foreground" />
 
                     <div className="flex-1 min-w-0">
                       <span className="font-medium text-sm truncate block">
@@ -225,9 +225,8 @@ export function AppSidebar() {
                     <DropdownMenu>
                       <DropdownMenuTrigger
                         asChild
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
                       >
-                        <button className="hover:bg-accent rounded p-1">
+                        <button className="hover:bg-accent rounded">
                           <MoreHorizontal className="h-4 w-4" />
                         </button>
                       </DropdownMenuTrigger>
@@ -311,22 +310,8 @@ const SidebarDropDownMenu = () => {
       <DropdownMenuContent className="w-56">
         <DropdownMenuGroup>
           <Link href="/account">
-            <DropdownMenuItem
-              onKeyDown={(e: React.KeyboardEvent) => {
-                if (
-                  (e.metaKey || e.ctrlKey) &&
-                  e.shiftKey &&
-                  e.key.toLowerCase() === "p"
-                ) {
-                  e.preventDefault();
-                  router.push("/account");
-                }
-              }}
-              tabIndex={0}
-            >
+            <DropdownMenuItem tabIndex={0}>
               <span>Account</span>
-
-              <DropdownMenuShortcut>⌘A</DropdownMenuShortcut>
             </DropdownMenuItem>
           </Link>
           <DropdownMenuSub>
@@ -364,7 +349,6 @@ const SidebarDropDownMenu = () => {
         <DropdownMenuItem onClick={logout}>
           <LogOut />
           <span>Log out</span>
-          <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

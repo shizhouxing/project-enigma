@@ -7,6 +7,10 @@ interface GameSettingsProps {
 }
 
 export function GameSettings({ game }: GameSettingsProps) {
+  
+  if (!game.metadata){
+    return <>No Metadata</>
+  }
   return (
     <Card>
       <CardHeader>
