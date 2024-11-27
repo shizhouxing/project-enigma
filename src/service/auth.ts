@@ -132,7 +132,7 @@ export async function logout(): Promise<{ ok: boolean; error?: string }> {
 }
 
 export async function validateToken(): Promise<
-  { ok: boolean; username?: string; image?: string; error?: string }
+  { ok: boolean; id? : string; username?: string; image?: string; error?: string }
 > {
   const cookieStore = await cookies();
   const token = cookieStore.get("sessionKey")?.value;

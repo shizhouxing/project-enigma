@@ -1,3 +1,10 @@
+export interface HandleErrorResponse{
+  ok? : boolean;
+  status? : number;
+  data? : any;
+  message? : string;
+  error? : string
+}
 
 export async function handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
@@ -6,6 +13,7 @@ export async function handleResponse<T>(response: Response): Promise<T> {
         status: response.status,
         data: error,
         message: error.detail || "An error occurred",
+
       };
     }
     return response.json();

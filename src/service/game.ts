@@ -4,20 +4,19 @@ import { Game, GameErrorResponse } from "@/types/game";
 
 // Cache duration in seconds
 export const CACHE_DURATION = 5 * 60; // 5 minutes
-export const GAMES_CACHE = new Map<string, { data: Game[]; timestamp: number }>();
+export const GAMES_CACHE = new Map<string, { data: Game[] | Game; timestamp: number }>();
 
 export async function getGameStream(skip: number = 0, include: number = 0): Promise<ReadableStream<any> | Game[]> {
   const cacheKey = `games-${skip}-${include}`;
   const now = Date.now();
   const cached = GAMES_CACHE.get(cacheKey);
-
-    // Return cached data if it's still valid
+  // Return cached data if it's still valid
   if (cached && (now - cached.timestamp) / 1000 < CACHE_DURATION) {
     console.log("return cache games")
     return cached.data as Game[];
   }
   
-  const response = await fetch(`${process.env.FRONTEND_HOST}${API_CONFIG.ENDPOINTS.GAME}stream?s=0`);
+  const response = await fetch(`${process.env.FRONTEND_HOST}${API_CONFIG.ENDPOINTS.GAME}stream?s=${skip}`);
   
   const stream = createStream(response, {
     eventTypes: ["message", "error"],
@@ -31,9 +30,9 @@ export async function getGames(skip: number = 0, include: number = 0): Promise<G
   const cached = GAMES_CACHE.get(cacheKey);
 
   // Return cached data if it's still valid
-  if (cached && (now - cached.timestamp) / 1000 < CACHE_DURATION) {
-    return cached.data as Game[];
-  }
+  // if (cached && (now - cached.timestamp) / 1000 < CACHE_DURATION) {
+  //   return cached.data as Game[];
+  // }
 
   try {
     const response = await fetch(
@@ -43,9 +42,9 @@ export async function getGames(skip: number = 0, include: number = 0): Promise<G
           "Content-Type": "application/json",
           "Accept": "application/json",
         },
-        next: {
-          revalidate: CACHE_DURATION, // Next.js 13+ cache configuration
-        },
+        // next: {
+        //   revalidate: CACHE_DURATION, // Next.js 13+ cache configuration
+        // },
       }
     );
 
@@ -84,7 +83,7 @@ export async function getGamesFromId(id: string): Promise<Game | GameErrorRespon
 
   // Return cached data if it's still valid
   if (cached && (now - cached.timestamp) / 1000 < CACHE_DURATION) {
-    return cached.data as Game[];
+    return cached.data as Game;
   }
 
   try {
