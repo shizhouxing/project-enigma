@@ -32,9 +32,6 @@ httptools==0.6.1
 httpx==0.27.0
 identicons==0.1.0
 idna==3.7
-iniconfig==2.0.0
-ipykernel==6.29.5
-ipython==8.29.0
 isodate==0.7.2
 itsdangerous==2.2.0
 jedi==0.19.2
@@ -53,8 +50,7 @@ msrestazure==0.6.4.post1
 multidict==6.1.0
 mypy==1.13.0
 mypy-extensions==1.0.0
-nest-asyncio==1.6.0
-numpy==2.1.2
+numpy==2.0.2
 oauthlib==3.2.2
 openai==1.37.1
 packaging==24.1
