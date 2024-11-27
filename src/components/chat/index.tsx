@@ -6,7 +6,6 @@ import {
   createTitle,
   endGame,
   forfeitGame,
-  GameSessionPublic,
   GameSessionPublicResponse,
 } from "@/service/session";
 import { Message as MessageComponent } from "./message";
@@ -14,11 +13,11 @@ import { ScrollArea } from "../ui/scroll-area";
 import { Textarea } from "../ui/textarea";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
-import { ArrowRight, Disc, Lock, Share2, Unlock } from "lucide-react";
+import { ArrowRight, Target, Disc, Lock, Share2, Unlock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Message, useChat } from "ai/react";
 import useTimer from "@/hooks/use-timer";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   Tooltip,
   TooltipProvider,
@@ -36,7 +35,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
-import { DialogTrigger } from "@radix-ui/react-dialog";
+import Image from "next/image";
 
 interface SharedGameProps {
   title?: string;
@@ -161,7 +160,6 @@ export const ChatComponent = ({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Hook
-  const pathname = usePathname();
   const { isMobile } = useSidebar();
   const notification = useNotification();
   const { seconds, isComplete, start, pause, formatTime } = useTimer(30 * 60);
@@ -309,7 +307,7 @@ export const ChatComponent = ({
           console.error(error);
           return;
         }
-      } else if (messages.length === 0) {
+      } else if (messages.length <= 1) {
         notification.showWarning("No Content Within Session");
       }
 
@@ -349,7 +347,7 @@ export const ChatComponent = ({
 
   useEffect(() => {
     // This effect runs when the component mounts
-    console.log(session);
+    // console.log(session);
     if (!session.ok) {
       router.push("/");
     }
@@ -539,7 +537,6 @@ export const ChatComponent = ({
         />
 
         {/* Model info for completed session */}
-
         <div className="absolute top-4 right-4 flex items-center space-x-3 z-20">
           {!session.completed && (
             <Tooltip>
@@ -607,6 +604,23 @@ export const ChatComponent = ({
                   </TooltipContent>
                 </Tooltip>
               )}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-xl bg-zinc-800/50 border border-zinc-700/50 hover:bg-zinc-700/50"
+                    onClick={() => {
+                      setShowTargetModal(true);
+                    }}
+                  >
+                    <Target className="h-4 w-4 text-zinc-200" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Objective</p>
+                </TooltipContent>
+              </Tooltip>
             </>
           )}
         </div>
@@ -675,7 +689,12 @@ export const ChatComponent = ({
         {/* Input Container */}
         {!session.completed && (
           <div className="w-full relative z-10">
-            <Card className="border-zinc-700/50 flex flex-col gap-1.5 pl-4 pt-2.5 pr-2.5 pb-2.5 items-stretch transition-all duration-200 relative shadow-[0_0.25rem_1.25rem_rgba(0,0,0,0.035)] focus-within:shadow-[0_0.25rem_1.25rem_rgba(0,0,0,0.075)] hover:border-zinc-600 focus-within:border-zinc-600 cursor-text z-10 rounded-t-2xl rounded-b-none border-b-0">
+            <Card
+              className="border-zinc-700/50 flex flex-col gap-1.5 pl-4 pt-2.5 pr-2.5 pb-2.5 items-stretch transition-all duration-200 relative shadow-[0_0.25rem_1.25rem_rgba(0,0,0,0.035)] focus-within:shadow-[0_0.25rem_1.25rem_rgba(0,0,0,0.075)] hover:border-zinc-600 focus-within:border-zinc-600 cursor-text z-10 rounded-t-2xl rounded-b-none border-b-0"
+              title={
+                session.description || "Hover to view the session objective"
+              }
+            >
               <div className="relative flex">
                 <Textarea
                   ref={textareaRef}
@@ -731,15 +750,19 @@ export const ChatComponent = ({
                 </div>
               </div>
               <div className="flex flex-row space-x-2 cursor-default select-none">
-                <img
-                  src={session.model?.image}
-                  alt={session.model?.name}
-                  className={cn(
-                    `h-6 w-6 object-cover rounded-xl border-[1px] border-zinc-500 cursor-default`,
-                    isLoading && "animate-spin",
-                    "hover:animate-spin"
-                  )}
-                />
+                {session.model && session.model.image && session.model.name && (
+                  <Image
+                    src={session.model?.image}
+                    alt={session.model?.name}
+                    width={50}
+                    height={50}
+                    className={cn(
+                      `h-6 w-6 object-cover rounded-xl border-[1px] border-zinc-500 cursor-default`,
+                      isLoading && "animate-spin",
+                      "hover:animate-spin"
+                    )}
+                  />
+                )}
                 <span
                   className={cn(
                     `text-md font-normal text-white`,
@@ -761,17 +784,45 @@ export const ChatComponent = ({
         )}
       </div>
 
-      <Dialog open={showTargetModal} onOpenChange={setShowTargetModal}>
-        <DialogTrigger asChild>
-          <Button variant="outline">Game Target</Button>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Game Target</DialogTitle>
-            {session.description}
+      <Dialog
+        open={showTargetModal}
+        onOpenChange={() => {
+          // Do nothing when trying to close via outside click or escape
+          return;
+        }}
+      >
+        <DialogContent
+          className="sm:max-w-[425px]"
+          // Prevent closing by clicking outside
+          onPointerDownOutside={(e) => e.preventDefault()}
+          // Prevent closing by pressing escape
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
+          <DialogHeader className="text-center">
+            <DialogTitle>Game Objective</DialogTitle>
+            <DialogDescription>
+              Get ready to challenge your skills! Dive into this session where
+              every move counts. Complete your objective, crack the codes, and
+              leave your mark on the leaderboard. Are you ready to rise to the
+              top?
+              <br className="mb-4" />
+              <span className=" font-bold text-white mt-3">
+                Objective
+              </span>: {session.description}
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button onClick={() => setShowTargetModal(false)}>Close</Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (!session.completed) {
+                  start(); // the timer
+                }
+                setShowTargetModal(false);
+              }}
+            >
+              {session.completed ? "Close" : "Start Cracking"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

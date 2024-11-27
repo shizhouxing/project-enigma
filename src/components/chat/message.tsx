@@ -4,8 +4,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Card } from "../ui/card";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism'
 import { Check, Copy } from "lucide-react";
 import { Button } from "../ui/button";
 
@@ -112,7 +112,8 @@ const MessageContent = React.forwardRef<HTMLDivElement, MessageContentProps>(
             {typeof children === "string" ? (
               <ReactMarkdown
                 components={{
-                  code({ node, inline, className, children, ...props }) {
+                  code({ node, className, children, style, ...props }) {
+                    const inline = undefined;
                     const match = /language-(\w+)/.exec(className || "");
                     const language = match ? match[1] : "";
                     const codeString = String(children).replace(/\n$/, "");
@@ -133,7 +134,8 @@ const MessageContent = React.forwardRef<HTMLDivElement, MessageContentProps>(
                             )}
                           </Button>
                         </div>
-
+                        
+                        
                         <div className="max-w-full overflow-x-auto">
                           <SyntaxHighlighter
                             style={oneDark}
@@ -144,12 +146,9 @@ const MessageContent = React.forwardRef<HTMLDivElement, MessageContentProps>(
                               margin: "1rem 0",
                               padding: "1rem",
                               backgroundColor: "rgb(40, 44, 52)",
-                              border : "3px",
-                              borderColor : "white",
                               width: "100%",
                               maxWidth: "100%",
                             }}
-                            {...props}
                           >
                             {codeString}
                           </SyntaxHighlighter>
@@ -179,9 +178,7 @@ const MessageContent = React.forwardRef<HTMLDivElement, MessageContentProps>(
                     );
                   },
                   p: ({ children }) => (
-                    <div className="mb-0 last:mb-0">
-                      {children}
-                    </div>
+                    <div className="mb-0 last:mb-0">{children}</div>
                   ),
                   ul: ({ children }) => (
                     <ul className="list-disc pl-4 mb-4 last:mb-0">
