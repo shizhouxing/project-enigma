@@ -1,12 +1,10 @@
 import os
 import secrets
-import warnings
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Any, Literal, Union
 from urllib.parse import quote_plus
 from pydantic import (
     AnyUrl,
-    BeforeValidator,
     HttpUrl,
     computed_field,
 )
@@ -39,9 +37,7 @@ class Settings(BaseSettings):
     FRONTEND_HOST: str = os.getenv("FRONTEND_HOST","http://localhost:3000")
     ENVIRONMENT: Literal["local", "staging", "production"] = "local"
     
-    BACKEND_CORS_ORIGINS: Annotated[
-        list[AnyUrl] | str, BeforeValidator(parse_cors)
-    ] = []
+    BACKEND_CORS_ORIGINS: list[Union[AnyUrl, str]] = []
     
     
     @computed_field
@@ -125,16 +121,6 @@ def debug_env_vars():
             
     # Print current working directory
     print(f"Current working directory: {os.getcwd()}")
-        
-    # Print relevant environment variables
-    env_vars = [
-        "MONGODB_USER",
-        "MONGODB_PASSWORD",
-        "MONGODB_HOST",
-        "MONGODB_NAME",
-    ]
-    for var in env_vars:
-        print(f"{var}: {'Set' if os.getenv(var) else 'Not set'}")
 
 # Initialize settings with debug option
 try:
