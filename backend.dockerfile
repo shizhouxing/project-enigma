@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY api/ /app/api/
 
 # Expose the port your application will run on (default for Uvicorn is 8000)
-EXPOSE 8000
+EXPOSE 51234
 
 # Set the default command to run the application
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "api", "--workers", "4"]
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "51234", "--reload", "--reload-dir", "api", "--workers", "4"]
