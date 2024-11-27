@@ -381,7 +381,7 @@ async def create_game_session(*,
 
         description=None
         if game["metadata"].get("game_rules", {}).get("deterministic", False):
-            description = f"{game["session_description"]} {sample.get("kwarg", {}).get("target", "")}"
+            description = f"{game["session_description"]} {sample.get("kwargs", {}).get("target", "")}"
         else:
             description = f"{game["session_description"]}"
 
@@ -582,6 +582,7 @@ async def get_session(*,
             "outcome": 1,
             "completed_time": 1,
             "create_time": 1,
+            "description" : 1,
             "user": {
             "username": 1
             },
