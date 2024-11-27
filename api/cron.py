@@ -28,10 +28,9 @@ async def history_garbage_collection():
     db = await get_database()
     result = await db.sessions.delete_many({
         "completed" : True,
-        "$or": [
-            {"history": { "$size": 0 }},
-            {"history": { "$exists": False }}
-        ]
+        "$expr": {
+            "$lt": [{ "$size": "$history" }, 1]
+        }
     })
 
     if result.deleted_count == 0:
