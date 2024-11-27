@@ -16,7 +16,6 @@ async def check_model_service(model_endpoint: str) -> Dict[str, str]:
         
         base_url = f"{settings.FRONTEND_HOST}/api/"
         endpoint = urllib.parse.urljoin(base_url, model_endpoint)
-        print(endpoint)
         async with aiohttp.ClientSession() as session:
             start_time = time.time()
             async with session.get(endpoint, timeout=5) as response:
