@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "../ui/button";
 import { useNotification } from "../toast";
 import { validateToken } from "@/service/auth";
+import { useUser } from "@/context/user";
+import { getUser } from "@/service/user";
 
 // Helper function to check if a window is a popup
 const isPopupWindow = (win: Window): boolean => {
@@ -38,12 +40,27 @@ export const GoogleProvider = ({
   
   const router = useRouter();
   const notification = useNotification();
+  const { dispatch } = useUser();
   // Handle messages from popup window
   const handleMessage = useCallback(
-    (event: MessageEvent) => {
+    async (event: MessageEvent) => {
       if (event.data === "authUsername"){
         router.push("/username")
       } else if (event.data === "authCompleted") {
+        const user = await getUser();
+        if (user.username === null) {
+          router.push('/username')
+        }
+        dispatch({
+          type : "SET_USER",
+          payload : {
+            id : user.id ?? null, 
+            username : user.username ?? null,
+            image : user.image ?? null,
+            history : user.history ?? [],
+            pinned : user.pinned ?? []
+          }
+        })
         router.push('/')
       } else if (event.data === "authFailed") {
         notification.showWarning(
@@ -120,7 +137,6 @@ export const GoogleProvider = ({
 
             if (sessionCookie) {
               notification.showSuccess("Successfully Logged In");
-              console.log(window.history.state)
               router.push('/')
             } else {
               notification.showWarning(

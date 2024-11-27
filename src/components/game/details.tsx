@@ -1,9 +1,9 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "../ui/button";
-import { PlayCircle } from "lucide-react";
+import { ChartColumn, Pin, PlayCircle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -12,31 +12,42 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useRouter } from "next/navigation";
+import { redirect, useRouter } from "next/navigation";
 import type { Game } from "@/types/game";
-import { validateToken } from '@/service/auth'
-
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
+import { useUser } from "@/context/user";
+import { createChat } from "@/service/session";
+import { useNotification } from "../toast";
 
 interface GameDetailsProps {
   game: Game;
   isAuthenticated?: boolean; // Add this prop to check auth status
 }
 
-export function GameDetails({
-  game
-}: GameDetailsProps) {
+export function GameDetails({ game }: GameDetailsProps) {
+  const { state : user, handlePin, handleUnpin, isLoading } = useUser();
+  const notification = useNotification()
+  const [pinned, setPinned] = useState(user.pinned.filter((e : { id : string }) => e.id == game.id).length != 0);
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const router = useRouter();
 
-  const handlePlayNow = async () => {
 
-    const isvalidtoken = await validateToken();
-    if (!isvalidtoken) {
-      setShowAuthDialog(true);
-      return;
+  useEffect(() => {
+    setPinned(user.pinned.filter((e : { id : string }) => e.id == game.id).length != 0)
+  }, [user])
+
+  const handleLeaderboardClick = () => {
+    router.push(`/leaderboard/${game.id}`)
+  }
+
+
+  const handlePlayNow = async () => {
+    const chat = await createChat(game.id);
+    if(!chat.ok){
+      notification.showError(chat.error ?? "Could not create new Chat ")
     }
-    console.log("valid token");
-    // Your existing play now logic here
+    notification.showSuccess("Game session created")
+    router.push(`/c/${chat.session_id}`)
   };
 
   const handleLogin = () => {
@@ -45,11 +56,55 @@ export function GameDetails({
 
   return (
     <>
-      <Button onClick={handlePlayNow} size="lg" className="gap-2 items-center">
-        <PlayCircle className="w-5 h-5" />
-        Play Now
-      </Button>
-
+<div className="flex space-x-2">
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            onClick={handlePlayNow}
+            variant="default"
+            className="gap-2 items-center"
+          >
+            Play Game<PlayCircle />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Play Now</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            onClick={handleLeaderboardClick}
+            size="icon"
+            variant="ghost"
+            className="gap-2 items-center"
+          >
+            <ChartColumn/>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Leaderboard</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            onClick={async () => { 
+              if (!pinned){
+                await handlePin(game.id, game.image ?? "", game.title)
+              } else {
+                await handleUnpin(game.id)
+              }
+            }}
+            size="icon"
+            variant="ghost"
+            className="gap-2 items-center"
+            disabled={isLoading}
+          >
+            <Pin fill={pinned ? "white" : ""}/>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Pin to sidebar</TooltipContent>
+      </Tooltip>
+      </TooltipProvider>
+    </div>
       <Dialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>

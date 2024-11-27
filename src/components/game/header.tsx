@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useEffect } from "react";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ interface GameHeaderProps {
 }
 
 export function GameHeader({ game }: GameHeaderProps) {
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
@@ -20,16 +21,12 @@ export function GameHeader({ game }: GameHeaderProps) {
     });
   };
 
-  const handleStar = async (starred: boolean) => {
-    // Here you would implement the API call to update the star count
-    console.log("Star status changed:", starred);
-  };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <Button variant="ghost" size="sm" asChild className="gap-2">
-          <Link href="/games">
+          <Link href="/">
             <ArrowLeft className="w-4 h-4" />
             Back to Games
           </Link>
@@ -38,13 +35,13 @@ export function GameHeader({ game }: GameHeaderProps) {
 
       <div className="flex items-start gap-6">
         <div className="relative w-32 h-32 rounded-lg overflow-hidden bg-gray-100">
-          <Image
+          {game.image && <Image
             alt={`${game.title} logo`}
             src={game.image}
             fill
             className="object-cover"
             priority
-          />
+          />}
         </div>
 
         <div className="flex-1">
@@ -60,9 +57,9 @@ export function GameHeader({ game }: GameHeaderProps) {
           <div className="flex gap-4 mb-4">
             <div className="flex items-center gap-1 text-gray-600">
               <Calendar className="w-4 h-4" />
-              <span className="text-sm">{formatDate(game.created_at)}</span>
+              <span className="text-sm">{formatDate(game?.created_at ?? Date.now().toLocaleString())}</span>
             </div>
-            {game.metadata.game_rules.timed && (
+            {(game.metadata && game.metadata.game_rules.timed) && (
               <div className="flex items-center gap-1 text-gray-600">
                 <Clock className="w-4 h-4" />
                 <span className="text-sm">
@@ -73,7 +70,8 @@ export function GameHeader({ game }: GameHeaderProps) {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {game.author.map((author) => (
+
+            {(game?.author ?? []).map((author) => (
               <Badge key={author} variant="secondary">
                 {author}
               </Badge>

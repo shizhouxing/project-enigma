@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { GoogleProvider } from "./oauth/google";
 import { useNotification } from "./toast";
 import { useUser } from "@/context/user";
+import { getUser } from "@/service/user";
 
 interface AuthFormsProps {
   onUsernameSubmit: (username: string) => Promise<any>;
@@ -26,6 +27,7 @@ export const AuthForms = ({
 }: AuthFormsProps) => {
   const router = useRouter();
   const notification = useNotification();
+  const { dispatch } = useUser();
   const [state, setState] = useState("username");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -72,11 +74,18 @@ export const AuthForms = ({
         }
       } else {
         notification.showSuccess("Successfully Logged In");
-        if (window.history?.length && window.history.length > 1) {
-          router.back();
-        } else {
-          router.push("/");
-        }
+        const user = await getUser();
+        dispatch({
+          type : "SET_USER",
+          payload : {
+            id : user.id ?? null, 
+            username : user.username ?? null,
+            image : user.image ?? null,
+            history : user.history ?? [],
+            pinned : user.pinned ?? []
+          }
+        })
+        router.push("/");
       }
     } finally {
       setIsLoading(false);

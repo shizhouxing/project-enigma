@@ -10,8 +10,8 @@ interface ToastMessage {
   
 const WarningMessage = {
     Description: ({ message }: ToastMessage) => (
-      <div className="space-x-3 flex items-center text-yellow-500">
-        <Ban className="h-5 w-5" />
+      <div className="space-x-3 flex items-center">
+        <Ban className="h-5 w-5 text-yellow-500" />
         <span>{message}</span>
       </div>
     ),
@@ -22,8 +22,8 @@ const WarningMessage = {
 
 const ErrorMessage = {
   Description: ({ message }: ToastMessage) => (
-    <div className="space-x-3 flex items-center text-red-500">
-      <X className="h-5 w-5" />
+    <div className="space-x-3 flex items-center">
+      <X className="h-5 w-5  text-red-500" />
       <span>{message}</span>
     </div>
   ),
@@ -35,8 +35,8 @@ const ErrorMessage = {
 
 const SuccessfulMessage = {
   Description: ({ message }: ToastMessage) => (
-    <div className="space-x-3 flex items-center text-emerald-500">
-      <CheckIcon className="h-5 w-5" />
+    <div className="space-x-3 flex items-center text-white">
+      <CheckIcon className="h-5 w-5 text-emerald-500" />
       <span>{message}</span>
     </div>
   ),

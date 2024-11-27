@@ -1,12 +1,13 @@
 "use client";
 import React, { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardTitle } from "@/components/ui/card";
 import { Game } from "@/types/game";
 import Link from "next/link";
 import { Input } from "../ui/input";
 import { Search } from "lucide-react";
 
 function GameCardComponent({ game }: { game: Game }) {
+  
   return (
     <Link href={`/games/${game.id}`} key={game.id}>
       <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 hover:scale-[1.02]">
@@ -27,6 +28,10 @@ function GameCardComponent({ game }: { game: Game }) {
 
 const GameCardGallery = ({ games }: { games: Game[] }) => {
   const [searchQuery, setSearchQuery] = useState<string>("");
+
+  if (games && games.length == 0){
+    return <>Empty Game list</>
+  }
 
   const filteredGames = games.filter((game) =>
     game.title.toLowerCase().includes(searchQuery.toLowerCase())
