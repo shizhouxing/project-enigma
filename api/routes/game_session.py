@@ -1,23 +1,27 @@
+import re
 import json
-from typing import Literal, Any
+from typing import Any, List, Dict
 from bson import ObjectId
 from fastapi import APIRouter, \
                     HTTPException,\
-                    status
-from sse_starlette.sse import EventSourceResponse
+                    status,\
+                    BackgroundTasks
+from fastapi.responses import StreamingResponse
 
 from datetime import datetime, UTC
 from api import crud
 from api.deps import Database, CurrentUser
-from api.models import (StreamResponse, 
-                        GameSessionCreateResponse, 
-                        GameSessionPublic, 
-                        GameSessionHistoryItem, 
+from api.models import (Request,
+                        ClientMessage,
+                        GameSessionCreateResponse, # Not this
+                        GameSessionPublic,  
+                        GameSessionHistoryItem,
+                        GameReadOnly,
                         GameSessionTitleRequest,
                         Message)
 from api.generative import Registry as Models
 from api.judge import registry
-from api.utils import handleStreamResponse, logger
+from api.utils import logger
 
 router = APIRouter()
 
@@ -28,7 +32,7 @@ async def create_session(
     db: Database
 ) -> GameSessionCreateResponse:
     """
-    Creates a new game session for the currenet user with the specified game ID
+    Creates a new game session for the current user with the specified game ID
 
     Args:
         game_id (str): ID of the game for the session
@@ -56,34 +60,42 @@ async def create_session(
             model_id=model_id, 
         )
     except Exception as e:
+        logger.error(e)
         raise HTTPException( status_code=status.HTTP_400_BAD_REQUEST, detail="Something went wrong")
         
 
     return GameSessionCreateResponse.from_game(new_session)
 
 
+@router.get('/{id}/chat_conversation', tags=["Game Session"])
+async def get_chat_session(
+    id : str,
+    user : CurrentUser,
+    db : Database
+) -> GameSessionPublic:
+    
+    session = await crud.get_session(
+        user_id=ObjectId(user.id),
+        session_id=id,
+        db=db
+    )
+
+    return session
+
+
 # NOTE: Comment or Delete when in production
-@router.delete("/{id}/session/{user_id}", tags=["Game Session"])
+@router.delete("/{id}/chat_conversation", tags=["Game Session"])
 async def deleted_session(
     id : str,
-    user_id : str,
     user: CurrentUser, 
     db: Database
 ) -> Message:
     """NOTE: this is just for testing"""
 
     try:
-
-        if str(user.id) != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User does not match the authentication"
-            )
-        
         response = await db.sessions.delete_one({
             "_id" : ObjectId(id),
             "user_id" : user.id, 
-            "completed" : True
         })
 
         if response.deleted_count == 0:
@@ -110,54 +122,66 @@ async def title_completion(
     content: GameSessionTitleRequest,
     id: str,
     user_id: str = None,
-) -> Any:
+) -> Message:
     """
     Generate and update a session title using minimal tokens.
-    
     Args:
         current_user (CurrentUser): The authenticated user
         db (Database): Database connection
         content (GameSessionTitleRequest): Request containing prompt/history
         id (str): Session ID
         user_id (str): User ID
-    
     Returns:
         dict: Updated session information
     """
     try:
-        session = await crud.get_session(session_id=id, user_id=current_user.id, db=db)
+        session = await crud.get_session(
+            session_id=id,
+            user_id=current_user.id,
+            completed=None,
+            db=db
+        )
         
+        # and session.title is None
         if str(session.user_id) != str(current_user.id) != str(user_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You do not have permission to access this session"
             )
+
         
-        # Create minimal context for title generation
+        # Create minimal context for title generation with modified format
         title_prompt = [
-            {"role": "system", "content": "Create a brief, descriptive title."},
-            {"role": "user", "content": content.message_content}  # Use just first message
+            {
+                "role": "system", 
+                "content": "Analyze the input message and generate a concise, engaging, and relevant title that captures the essence of the content or theme. Ensure the title is clear and compelling for its intended audience and in xml starting with <3c7469746c653e> end with</3c7469746c653e>."
+            },
+            {
+                "role": "user", 
+                "content": content.message_content
+            }
         ]
-        
+
         client = Models.get_client(session.model.name)
-
-
+        
         # Generate title with max_tokens limit
         title_response = client.generate(
             title_prompt,
             session.model.name,
             stream=False,
-            max_tokens=10  # Limit token usage
+            max_tokens=100  # Increased slightly to accommodate format
         )
         
         response = title_response.get_text().strip()
+
+        title = re.sub('</?3c7469746c653e>', '', response)
+        
         # Update title in database
         result = await db.sessions.update_one(
             {"_id": session.id},
-            {"$set": {"title": response}}
+            {"$set": {"title": title}}
         )
         
-
         if result.modified_count == 0:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -165,27 +189,101 @@ async def title_completion(
             )
             
         return Message(
-                status=status.HTTP_200_OK,
-                message="Title response was completion was successful.",
-                data={"title": response})
+            status=status.HTTP_200_OK,
+            message="Title completion was successful.",
+            data={"title": title}
+        )
         
     except Exception as e:
         print(e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error generating title: {str(e)}"
+            detail=f"Error generating title"
         )
+
+def model_generate_generator(
+        history : List[ClientMessage],
+        id: str,
+        user_id: str,
+        current_user: CurrentUser,
+        db : Database,
+        session : Dict[str, Any],
+        background : BackgroundTasks):
+
+
+    if str(session.user_id) != str(current_user.id) != user_id or session.completed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to access this session"
+        )
+
+    # NOTE: where assuming the user does not have access 
+    session.history = history
+    model = session.model.name
+    metadata = session.metadata
+    validator = registry.get_validator(session.judge.validator.function.name)
+
+    client = Models.get_client(model)
+
+    updates = {"history"}
+    calmative_token = ""
+
+    if tool_enabled := metadata.model_config.get("models_config", {}).get("tools_config", {}).get("enabled", False):
+        stream = client.generate(session.history, model, tools=metadata.models_config.tools_config.tools)
+    else:
+        stream = client.generate(session.history, model)
+
+    for token in stream.iter_tokens():
+        calmative_token += token
+        
+        if not tool_enabled and not session.outcome and validator(**{"source" : calmative_token} | metadata.kwargs):
+            session.outcome = "win"
+            session.completed = True
+            session.completed_time = datetime.now(UTC)
+            updates = updates | {"completed", "outcome", "completed_time"}
+
+        yield "{payload}\n".format(
+            payload=json.dumps(dict(event="message", content=token))
+        )
+
+
+    functions_called = stream.get_function_call()
+    if functions_called and any(
+        validator(
+            **{"source": calmative_token} |
+            metadata.get("kwargs", {}) |
+            {"function_call_name": func.name, "function_call_arguments": func.argument}
+        ) for func in functions_called
+    ):
+        session.outcome = "win"
+        session.completed = True
+        session.completed_time = datetime.now(UTC)
+        updates = updates | {"completed", "outcome", "completed_time"}
+
+    yield "{payload}\n".format(
+            payload=json.dumps(dict(event="end", outcome="playing" if session.outcome is None else session.outcome))
+        )
+
+    session.history.append({"role": "assistant", "content": calmative_token })
+    background.add_task(crud.update_game_session, 
+        session_id=id,
+        updated_session=session,
+        db=db,
+        updates=list(updates)
+    )
+
 
 
 
 @router.post("/{id}/chat_conversation/{user_id}/conversation", tags=["Game Session"])
 async def completion(
-    current_user: CurrentUser, 
+    request : Request,
+    id: str,
+    user_id: str,
+    current_user: CurrentUser,
     db: Database,
-    prompt : str,
-    id : str,
-    user_id : str=None,
-) -> Any:
+    background : BackgroundTasks
+) -> StreamingResponse:
     """
     Handle prompt from the user.
 
@@ -195,88 +293,36 @@ async def completion(
         session: MongoDB session instance
 
     Returns:
-        GameSessionChatResponse: Response model with model_output, outcome
+        StreamingResponse: Streaming response with model output
     """
-    try:
-        
-        current_session : GameSessionPublic = await crud.get_session(session_id=id, 
-                                                                     user_id=current_user.id,
-                                                                     db=db)
+    session = await crud.get_session(
+        session_id=id,
+        user_id=current_user.id,
+        completed=False,
+        db=db
+    )
+    
+    response = StreamingResponse(
+        model_generate_generator(history=request.encode, 
+                                 id=id, 
+                                 user_id=user_id, 
+                                 current_user=current_user, 
+                                 db=db, 
+                                 session=session,
+                                 background=background)
+    )
+    response.headers['x-vercel-ai-data-stream'] = 'v1'
+    return response
 
-        if str(current_session.user_id) != str(current_user.id) != user_id\
-           or current_session.completed:
-            raise HTTPException(
-                status_code = status.HTTP_403_FORBIDDEN,
-                detail = "You do not have permission to access this session"
-            )
-        
-        current_session.history.append({"role": "user", "content": prompt})
-        model = current_session.model.name
-        metadata = current_session.metadata
-        print(registry.validators)
-        validator = registry.get_validator(current_session.judge.validator.function.name)
-        
 
-        client = Models.get_client(model)
-
-        @handleStreamResponse(include_end=True)
-        async def model_generate_generator():
-            # NOTE: need to handle it when something goes wrong
-            updates = ["history"]
-            calmative_token = ""
-            if metadata.model_config.get("models_config", {}).get("tools_config", {}).get("enabled", False):
-                stream = client.generate(current_session.history, model, tools=metadata.models_config.tools_config.tools)
-            else:
-                stream = client.generate(current_session.history, model)
-            for token in stream.iter_tokens():
-                calmative_token += token
-                
-                print(validator(**{"source" : calmative_token } | metadata.kwargs ), metadata.kwargs, calmative_token)
-                if not current_session.outcome and\
-                   validator(**{"source" : calmative_token } | metadata.kwargs ):
-                    current_session.outcome = "win"
-                    current_session.completed = True
-                    current_session.completed_time = datetime.now(UTC) 
-                    updates = updates +\
-                          ["completed","outcome","completed_time"]
-                
-                yield StreamResponse(
-                        event="message",
-                        id="response",
-                        data=json.dumps({"content" : token}))
-
-            functions_called = stream.get_function_call()
-            if functions_called and any(validator(**{"source" : calmative_token } | metadata.get("kwargs", {}) | {"function_call_name": func.name, "function_call_arguments": func.argument}) for func in functions_called):
-                current_session.outcome = "win"
-                current_session.completed = True
-                current_session.completed_time = datetime.now(UTC) 
-                updates = updates +\
-                        ["completed","outcome","completed_time"]
-                
-            current_session.history.append({"role": "assistant", "content": calmative_token})
-            await crud.update_game_session(session_id=id, 
-                                           updated_session=current_session,
-                                           db=db,
-                                           updates=updates)
-           
-            
-
-    except Exception as e:
-        print(e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Something went wrong withing the stream"
-        )
-
-    return EventSourceResponse(model_generate_generator())
 
 @router.post("/{id}/chat_conversation/{user_id}/forfeit", tags=["Game Session"])
 async def forfeit(
     current_user: CurrentUser, 
     db: Database,
     id: str, 
-    user_id : str | None=None,
-):
+    user_id : str,
+) -> Message:
     """
     Forfeits current game session for user
     Args:
@@ -287,7 +333,9 @@ async def forfeit(
         dict: response containing outcome {"outcome": "forfeit"}
     """
 
-    session = await crud.get_session(session_id=id, user_id=user_id, db=db)
+    session = await crud.get_session(session_id=id, 
+                                     user_id=ObjectId(user_id), 
+                                     db=db)
     
     if user_id != str(session.user_id) != str(current_user.id) \
        or session.completed:
@@ -298,7 +346,7 @@ async def forfeit(
     
     session.completed = True
     session.outcome = "forfeit"
-    session.complete_time = datetime.now(UTC)
+    session.completed_time = datetime.now(UTC)
 
     await crud.update_game_session(db=db,
                                    session_id=id, 
@@ -306,12 +354,13 @@ async def forfeit(
                                    updates=[
                                        "completed",
                                        "outcome",
-                                       "complete_time"
+                                       "completed_time"
                                    ])
 
     return Message(
         status=status.HTTP_200_OK,
-        data="the chat was officially forfeited")
+        message="the chat was officially forfeited",
+        data=True)
 
 @router.post("/{id}/chat_conversation/{user_id}/end_game", tags=["Game Session"])
 async def end(
@@ -334,8 +383,8 @@ async def end(
                                      user_id=ObjectId(user_id),
                                      db=db)
     
-    if user_id != str(session.user_id) != str(current_user.id)\
-       or session.completed:
+
+    if user_id != str(session.user_id) != str(current_user.id):
         raise HTTPException(
             status_code = status.HTTP_403_FORBIDDEN,
             detail = "You do not have permission to access this session"
@@ -343,7 +392,7 @@ async def end(
     
     session.completed = True
     session.outcome = "loss"
-    session.complete_time = datetime.now(UTC)
+    session.completed_time = datetime.now(UTC)
 
     try:
 
@@ -353,7 +402,7 @@ async def end(
                                        updates=[
                                             "completed",
                                             "outcome",
-                                            "complete_time"])
+                                            "completed_time"])
 
     except Exception as e:
         raise e
@@ -361,55 +410,51 @@ async def end(
 
     return Message(
         status=status.HTTP_200_OK,
+        message="Session written successful",
         data={"outcome": session.outcome}
     )
 
 
 
-@router.post("/history", tags=["History"])
+@router.get("/history", tags=["History"])
 async def get_history(
     current_user: CurrentUser,
     db: Database,
-    s : int,
-    l : int = None
-):
+    s: int,
+    l: int = None
+) -> List[GameReadOnly]:
     """
-    Retrieves the chat history of all game sessions of current user
+    Retrieves the chat history of all game sessions of the current user.
 
     Args:
-        current_user (CurrentUser): The currently authenticated user
-        session: MongoDB session instance
+        current_user (CurrentUser): The currently authenticated user.
+        db (Database): The database instance.
+        s (int): The skip value for pagination.
+        l (int): The limit value for pagination (optional).
     Returns:
-        List[GameSessionHistoryResponse]: List of completed game sessions with session_id, target, outcome, duration
+        List[GameSessionHistoryResponse]: List of completed game sessions with session_id, target, outcome, duration.
     """
     try:
+        # Fetch the sessions from the database
         sessions = await crud.get_sessions_for_user(user_id=current_user.id, db=db, skip=s, limit=l)
 
-        @handleStreamResponse(include_end=True)    
-        async def stream_game_sessions():
-            for session in sessions:
-                yield StreamResponse(
-                    event="message",
-                    id="game_session",
-                    data=GameSessionHistoryItem(
-                        session_id=str(session.id),
-                        outcome=session.outcome,
-                        duration=(session.completed_time - session.create_time).total_seconds(),
-                        last_message=session.completed_time
-                    ).model_dump_json(exclude_none=True)
-                )
+        # Prepare the session history data
+        session_history = [
+            GameReadOnly.from_game_session(session)
+            for session in sessions
+        ]
     except Exception as e:
-        print(e)
+        # Raise an error if something goes wrong
         raise e
     
-    return EventSourceResponse(stream_game_sessions())
+    # Return the session history as a JSON response
+    return session_history
 
-@router.get("/history/{id}", tags=["History"])
-async def get_session_history(
-    id: str,
-    current_user: CurrentUser,
+@router.get("/chat_conversation/{shared_id}", tags=["Shared"])
+async def get_shared_conversation(
+    shared_id: str,
     db : Database
-):
+) -> GameReadOnly:
     """
     Retrieves the chat history of session_id of current user
 
@@ -420,20 +465,127 @@ async def get_session_history(
     Returns:
         GameSessionHistoryResponse: Database history details
     """
-    session = await crud.get_session(session_id=id, db=db)
-    
-    if str(session.user_id) != str(current_user.id) or not session.completed:
+
+
+    session = await crud.get_session_from_shared_id(shared_id=shared_id,
+                                                    db=db)
+    if not session.completed:
         raise HTTPException(
             status_code = status.HTTP_403_FORBIDDEN,
             detail = "You do not have permission to access this session"
         )
     
-    duration = (session.complete_time - session.create_time).total_seconds()
+    duration = (session.completed_time - session.create_time).total_seconds()
     
-    response_data = GameSessionHistoryItem(
-        session_id=str(session.session_id),
+
+    response_data = GameReadOnly(
+        username=session.user.username,
+        session_id=str(session.id),
+        title=session.title,
         outcome=session.outcome,
-        duration=duration
+        duration=duration,
+        last_message=session.completed_time,
+        history=session.history,
+        model=session.model
+        
+    )
+
+    return response_data
+
+@router.post("/{id}/chat_conversation/{user_id}/share", tags=["Shared"])
+async def post_shared_conversation(
+    id : str,
+    user_id : str,
+    user : CurrentUser,
+    db : Database
+) -> Message:
+    """
+    Retrieves the chat history of session_id of current user
+
+    Args:
+        session_id (str): The ID of the session to retrieve history for
+        current_user (CurrentUser): The currently authenticated user
+        session: MongoDB session instance
+    Returns:
+        GameSessionHistoryResponse: Database history details
+    """
+
+    if user_id != str(user.id):
+        raise HTTPException(
+            status_code = status.HTTP_403_FORBIDDEN,
+            detail = "You do not write access to access this session"
+        )
+
+
+    session = await crud.get_session(session_id=id,
+                                     user_id=user.id,
+                                     completed=True,
+                                     db=db)
+    
+    if not session.completed:
+        raise HTTPException(
+            status_code = status.HTTP_403_FORBIDDEN,
+            detail = "You do not have permission to access this session"
+        )
+    
+
+    session_id = ObjectId()
+    result = await db.sessions.update_one(
+            {"_id": session.id},
+            {"$set": {"shared": session_id}}
+        )
+        
+    if result.modified_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Session not found or no changes made"
+            )
+
+    return Message(
+        status=200,
+        message="Session was successfully shared",
+        data=str(session_id)
+    )
+
+
+@router.get("/{id}/chat_conversation/{user_id}/history", tags=["History"])
+async def get_session_history(
+    id: str,
+    user_id: str,
+    db : Database
+) -> Dict[str, Any]:
+    """
+    Retrieves the chat history of session_id of current user
+
+    Args:
+        session_id (str): The ID of the session to retrieve history for
+        current_user (CurrentUser): The currently authenticated user
+        session: MongoDB session instance
+    Returns:
+        GameSessionHistoryResponse: Database history details
+    """
+
+
+    session = await crud.get_session(session_id=id, 
+                                     user_id=ObjectId(user_id),
+                                     completed=True,
+                                     db=db)
+    
+    if not session.completed:
+        raise HTTPException(
+            status_code = status.HTTP_403_FORBIDDEN,
+            detail = "You do not have permission to access this session"
+        )
+    
+    duration = (session.completed_time - session.create_time).total_seconds()
+    
+    response_data = GameReadOnly(
+        session_id=str(session.id),
+        title=session.title,
+        outcome=session.outcome,
+        duration=duration,
+        last_message=session.completed_time,
+        history=session.history
     )
 
     return response_data

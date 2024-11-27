@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import asyncio
 import logging
 import warnings
@@ -10,7 +11,7 @@ from functools import wraps
 from io import BytesIO
 from functools import wraps
 from traceback import format_exception
-from typing import Any, Callable, Coroutine, Union, AsyncGenerator, Optional
+from typing import Any, Callable, Coroutine, Union, Generator
 from datetime import datetime, UTC
 import numpy as np
 from PIL import Image
@@ -19,6 +20,8 @@ from starlette.concurrency import run_in_threadpool
 
 from bson import ObjectId
 from bson.errors import InvalidId
+
+from api.models import StreamResponse
 
 NoArgsNoReturnFuncT = Callable[[], None]
 NoArgsNoReturnAsyncFuncT = Callable[[], Coroutine[Any, Any, None]]
@@ -146,7 +149,7 @@ def generate_hash(input_string: str) -> str:
     """
     return hashlib.md5(input_string.encode()).hexdigest()
 
-def generate(txt: str, primary: int | None = None, secondary: int | None = None) -> np.ndarray:
+def generate(txt: str, primary: int | None = None, secondary: int | None = None) -> str:
         """Generate a 5x5 identicon image based on the provided text.
 
         Args:
@@ -243,24 +246,22 @@ def handleStreamResponse(
     Returns:
         Wrapped async generator function that yields properly formatted SSE events
     """
-    def decorator(func: Callable[..., AsyncGenerator[Any, None]]):
+    def decorator(func: Callable[..., Generator[Any, None]]):
         @wraps(func)
-        async def wrapper(*args: Any, **kwargs: Any) -> AsyncGenerator[dict, None]:
+        def wrapper(*args: Any, **kwargs: Any) -> Generator[dict, None]:
             try:
-                async for item in func(*args, **kwargs):
-                    if hasattr(item, 'model_dump'):
-                        yield item.model_dump(exclude_none=True)
+                for item in func(*args, **kwargs):
+                    if hasattr(item, 'streamingResponse'):
+                        yield item.streamingResponse()
                     elif isinstance(item, dict):
+                        yield f"{json.dumps(item)}"
+                    elif isinstance(item, str):
                         yield item
-                    else:
-                        yield str(item)
-                        
                 if include_end:
-                    yield {
-                        "event": "end",
-                        "id": "end_message",
-                        "data": ""
-                    }
+                    yield StreamResponse(
+                        type="end",
+                        data={}
+                    )
                     
             except Exception as e:
                 logger.error(f"Streaming Event Error: {e}")

@@ -142,6 +142,7 @@ async def create_user(*, db: Database, user_create: UserRegister) -> User:
             user_data["last_login"]   = None
             user_data["last_signout"] = None
             user_data["access_token"] = None
+            user_data["pinned"] = []
         else:
             existing_user = await get_user_by_username(
                 db=db, username=user_create.username
@@ -161,6 +162,7 @@ async def create_user(*, db: Database, user_create: UserRegister) -> User:
             user_data["last_signout"] = None
             user_data["access_token"] = None
             user_data["image"] = generate(user_create.username)
+            user_data["pinned"] = []
 
         result = await db.users.insert_one(user_data)
 
@@ -237,6 +239,8 @@ async def get_game_from_id(*, db: Database, id: str) -> Game:
             detail=f"Interrupt game not found from ID: {id}"
         )
     
+    game_data["id"] = game_data["_id"]; del game_data["_id"] 
+
     return Game(**game_data)
 
 async def get_games(*, db: Database, skip : int = 0, limit : int | None= None ) -> AsyncGenerator[Game, None]:
@@ -265,8 +269,10 @@ async def get_games(*, db: Database, skip : int = 0, limit : int | None= None ) 
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Interrupt something went wrong when finding the games"
             )
-            
+        
         for game in game_data:
+            game["id"] = game["_id"]
+            del game["_id"]
             yield Game(**game)
     
     except Exception as e:
@@ -373,10 +379,9 @@ async def create_game_session(*,
         sample = registry.get_sampler(sample_fn["name"])()
 
 
-
         description=None
         if game["metadata"].get("game_rules", {}).get("deterministic", False):
-            description = f"{game["session_description"]} {sample.get("target", "")}"
+            description = f"{game["session_description"]} {sample.get("kwarg", {}).get("target", "")}"
         else:
             description = f"{game["session_description"]}"
 
@@ -392,9 +397,11 @@ async def create_game_session(*,
             completed_time=None,
             outcome=None,
             shared=None,
-            metadata= game["metadata"] | sample
+            metadata=game["metadata"] | sample
         ).model_dump()
-        print(new_session)
+
+        
+
         del new_session["id"]
         del new_session["user"]
         del new_session["judge"]
@@ -421,9 +428,88 @@ async def delete_game_session(db : Database, session_id: str) -> None:
     """ delete session for testing """
     await db.sessions.delete_one({"_id": ObjectId(session_id)})
 
+
+async def get_session_from_shared_id(*, shared_id: str, db: Database):
+    try:
+        shared_id = ObjectId(shared_id)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid session_id format"
+        )
+    
+    pipeline = [
+        {
+            "$match": {
+                "shared": shared_id,
+                "completed" : True
+            }
+        },
+        {
+            "$lookup": {
+                "from": "users",
+                "localField": "user_id",
+                "foreignField": "_id",
+                "as": "user"
+            }
+        },
+         {
+            "$lookup": {
+                "from": "models",
+                "localField": "agent_id",
+                "foreignField": "_id",
+                "as": "model"
+            }
+        },
+        {
+            "$unwind": {
+                "path": "$user",
+                "preserveNullAndEmptyArrays": True
+            }
+        },
+        {
+            "$unwind": {
+                "path": "$model",
+                "preserveNullAndEmptyArrays": True
+            }
+        },
+        {
+            "$project": {
+                "id": "$_id",
+                "_id": 0,
+                "title": 1,
+                "history": 1,
+                "user_id": 1,
+                "completed": 1,
+                "outcome": 1,
+                "completed_time": 1,
+                "create_time": 1,
+                "user": {
+                    "username" : 1,
+                },
+                "model" : 1
+
+            }
+        }
+    ]
+
+    cursor = db.sessions.aggregate(pipeline)
+    game_sessions = await cursor.to_list(length=None)
+    print(game_sessions)
+
+    if not game_sessions:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,  # Changed from 204 to 404
+            detail="Game session not found"
+        )
+
+    return GameSessionPublic(**game_sessions[0])
+
+
 async def get_session(*, 
                       session_id : str, 
-                      user_id : Optional[ObjectId]=None, 
+                      user_id : ObjectId, 
+                      completed : bool | None = None,
                       db: Database) -> GameSessionPublic:
     """
     Get session object by session_id
@@ -439,18 +525,16 @@ async def get_session(*,
         query["_id"] = ObjectId(session_id)
         if user_id is not None:
             query["user_id"] = user_id
-        else:
-            query["completed"] = True
-            query["shared"] = True
 
-        print(query)
+        if completed is not None:    
+            query["completed"] = completed
+
 
     except Exception:
         raise HTTPException(
             status_code = status.HTTP_400_BAD_REQUEST, 
             detail="Invalid session_id format"
         )
-
 
     session_data = db.sessions.aggregate([
         {"$match": query},
@@ -487,39 +571,50 @@ async def get_session(*,
             "preserveNullAndEmptyArrays": True
         }},
         # Project only needed fields
-        {"$project": {
-            "id" : "$_id",
-            "_id": 0,
+       {
+        "$project": {
+            "id": "$_id", 
+            "_id": 0, 
+            "title": 1,
             "history": 1,
             "user_id": 1,
             "completed": 1,
             "outcome": 1,
             "completed_time": 1,
-            "user": {"username": 1},
+            "create_time": 1,
+            "user": {
+            "username": 1
+            },
+            "shared": {
+            "$toString": "$shared"
+            },
             "model": {
-                "name": 1,
-                "provider": 1,
-                "image": 1,
-                "metadata": 1
+            "name": 1,
+            "provider": 1,
+            "image": 1,
+            "metadata": 1
             },
             "judge": {
-                "active": 1,
-                "sampler": 1,
-                "validator": 1
+            "active": 1,
+            "sampler": 1,
+            "validator": 1
             },
             "metadata": 1
-        }},
-        {"$limit": 1}
+        }
+        },
+        {"$limit": 1}   
     ])
     
     game_session = await session_data.to_list(length=None)
-    
+
     if len(game_session) == 0 or game_session is None:
         raise HTTPException(
             status_code=status.HTTP_204_NO_CONTENT,
             detail="game session is not found"
         )
-    return GameSessionPublic(**game_session.pop(0))
+    game = game_session.pop(0)
+
+    return GameSessionPublic(**game)
 
 async def update_game_session(*, 
                               db : Database, 
@@ -593,7 +688,13 @@ async def get_sessions_for_user(user_id: str | ObjectId, db: Database, skip : in
         )
     
 
-    return [GameSession(**session_data) for session_data in sessions_data]
+    response = [0] * len(sessions_data)  
+    for i, session_data in enumerate(sessions_data):
+        session_data["id"] = session_data["_id"]
+        del session_data["_id"]
+        response[i] = GameSession(**session_data) 
+
+    return response
 
 # =====================================================================
 
@@ -611,7 +712,14 @@ async def get_models(db : Database) -> List[Model]:
             detail="No available models found in the database"
         )
     
-    return [Model.model_validate(model) for model in models]
+
+    response = []
+    for model in models:
+        print(model)
+        model["id"] = model['_id']
+        del model['_id']
+        response.append(Model(**model))
+    return response
 
 
 async def get_random_model_id(db : Database) -> ObjectId:
@@ -632,7 +740,9 @@ async def get_random_model_id(db : Database) -> ObjectId:
             detail="No models found in the database"
         )
     
+
     selected_model = random.choice(models)
+    print(selected_model.id)
     if (id := selected_model.id) is None:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

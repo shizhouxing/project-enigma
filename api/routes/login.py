@@ -16,6 +16,7 @@ Dependencies:
 - MongoDB for user storage
 """
 import requests
+import base64
 from urllib.parse import quote
 from datetime import datetime, timedelta, UTC
 from typing import Annotated, Literal, Optional
@@ -30,7 +31,7 @@ from api.core import security
 from api.core.security import verify_expired
 from api.core.config import settings
 from api.models import Token, Message, UserPublic, UserRegister, User
-from api.utils import logger
+from api.utils import logger, generate
 
 
 
@@ -96,7 +97,8 @@ async def login_access_token(
             access_token=access_token
         )
 
-    except Exception:
+    except Exception as e:
+        print(e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error while updating token"
@@ -122,7 +124,9 @@ async def test_token(user: CurrentUser) -> Message:
     return Message(
         status=status.HTTP_200_OK,
         message="token is valid",
-        data=UserPublic.from_user(user).model_dump()
+        data=UserPublic(
+            username=user.username,
+            ).model_dump()
     )
 @router.get("/auth/{provider}", tags=["Auth"])
 def oauth_provider_sign_in(
@@ -224,11 +228,27 @@ async def callback(
             
             logger.info(f"Received user info: {userinfo}")
             
+            picture_url = userinfo.get("picture")
+
+            if picture_url:
+                image_response = requests.get(picture_url)
+                image_response.raise_for_status()  # Ensure the image was fetched successfully
+                
+                # Extract MIME type (e.g., "image/jpeg")
+                mime_type = image_response.headers.get("Content-Type")
+                if not mime_type or not mime_type.startswith("image/"):
+                    raise ValueError("Invalid or missing image content type")
+                
+                image_data = image_response.content
+                base64_image = f"data:{mime_type};base64," + base64.b64encode(image_data).decode('utf-8')
+            else:
+                base64_image =  generate(userinfo["email"]) # Handle cases where the picture is not provided
+
             # user does not exist create user
             if (user := await crud.get_user_by_email(db=db, email=userinfo["email"])) is None:
                 user = UserRegister(
                     email=userinfo["email"],
-                    image=userinfo["picture"],
+                    image=base64_image,
                     provider=provider)
                 
                 user : User = await crud.create_user(

@@ -207,9 +207,9 @@ async def is_available_username(db : Database,
     )
 
 
-@router.get("/{id}", response_model=UserPublic)
+@router.get("/user", response_model=UserPublic)
 async def read_user_by_id(
-    id: str,
+    user : CurrentUser,
     db: Database
 ) -> UserPublic:
     """
@@ -230,41 +230,85 @@ async def read_user_by_id(
         HTTPException (422): If the retrieved user data fails validation
     """
     try:
-        id = ObjectId(id)
+
         
         # Combined query using aggregation
         pipeline = [
-            {"$match": {"_id": id}},
+            {"$match": {"_id": user.id}},
             
             # Lookup recent completed sessions
-            {"$lookup": {
+            {
+            "$lookup": {
                 "from": "sessions",
-                "let": {"user_id": "$_id"},
+                "let": { "user_id": "$_id" },
                 "pipeline": [
-                    {"$match": {
-                        "$expr": {"$eq": ["$user_id", "$$user_id"]},
-                        "completed": True
-                    }},
-                    {"$project": {
-                        "_id": {"$toString": "$_id"},
-                        "title": 1
-                    }},
-                    {"$limit": 5}
+                {
+                    "$match": {
+                    "$expr": { "$eq": ["$user_id", "$$user_id"] },
+                    "completed": True,
+                    "$and": [
+                        { "history": { "$exists": True } }, 
+                        { "history": { "$not": { "$size": 0 } } }
+                        ]
+                    # "outcome": { "$ne": "forfeit" }
+                    }
+                },
+                {
+                    "$sort": { "completed_time": -1 }
+                },
+                {
+                    "$project": {
+                    "_id": { "$toString": "$_id" },
+                    "title": 1,
+                    "completed_time": 1
+                    }
+                },
+                { "$limit": 10 }
                 ],
                 "as": "history"
             }},
+            # Lookup games from pinned array
+            {
+                "$lookup": {
+                "from": "games",
+                "let": { "pinned_ids": "$pinned" },
+                "pipeline": [
+                    {
+                    "$match": {
+                        "$expr": {
+                        "$in": ["$_id", "$$pinned_ids"]
+                        }
+                    }
+                    },
+                    {
+                    "$project": {
+                        "id": { "$toString": "$_id" },
+                        "title": 1,
+                        "image": 1
+                    }
+                    }
+                ],
+                "as": "pinned"
+                }
+            },
             
             # Project only needed fields
             {"$project": {
+                "id": {"$toString": "$_id"},
                 "username": 1,
                 "image": 1,
-                "history": 1
+                "history": 1,
+                "pinned" : {
+                    "id" : 1,
+                    "title" : 1,
+                    "image" : 1
+                }
             }}
         ]
 
         result = await db.users.aggregate(pipeline).to_list(None)
         
-        if not result:
+        if not result or len(result) == 0:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Interrupt user with id {id} not found"
@@ -274,9 +318,11 @@ async def read_user_by_id(
         
         # Convert to UserPublic for response
         return UserPublic(
-            username=user_dict["username"],
-            image=user_dict["image"],
-            history=user_dict["history"]
+            id=user_dict.get("id", None),
+            username=user_dict.get("username", None),
+            image=user_dict.get("image", None),
+            history=user_dict.get("history", []) ,
+            pinned=user_dict.get("pinned", [])
         )
 
     except InvalidId:
@@ -285,10 +331,101 @@ async def read_user_by_id(
             detail="Interrupt invalid user ID format"
         )
     except ValidationError as e:
+        print
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(e)
         )
+
+@router.post("/pinned/{game_id}")
+async def update_pinned_games(
+    game_id: str,
+    user: CurrentUser,
+    db: Database
+):
+    try:
+        # Validate game_id format and convert to ObjectId
+        if not ObjectId.is_valid(game_id):
+            raise HTTPException(status_code=400, detail="Invalid game ID format")
+        game_object_id = ObjectId(game_id)
+        
+        # Check if game exists
+        game = await db.games.find_one({"_id": game_object_id})
+        if not game:
+            raise HTTPException(status_code=404, detail="Game not found")
+            
+        # Check if game is already pinned
+        user_data = await db.users.find_one({"_id": user.id})
+        current_pins = user_data.get("pinned", [])
+        
+        # Convert existing pins to ObjectId if they aren't already
+        current_pins = [ObjectId(pin) if isinstance(pin, str) else pin for pin in current_pins]
+        
+        # Don't add if already pinned
+        if game_object_id in current_pins:
+            return {"message": "Game already pinned", "pinned": True}
+            
+        # Add new pin
+        updated = await db.users.update_one(
+            {"_id": user.id},
+            {
+                "$addToSet": {
+                    "pinned": game_object_id
+                }
+            }
+        )
+        
+        if updated.modified_count == 0:
+            raise HTTPException(status_code=400, detail="Failed to pin game")
+            
+        return {
+            "message": "Game pinned successfully",
+            "pinned": True,
+            "game_id": str(game_object_id)
+        }
+        
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Invalid game ID format")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/pinned/{game_id}")
+async def unpin_game(
+    game_id: str,
+    user: CurrentUser,
+    db: Database
+):
+    try:
+        # Validate game_id format and convert to ObjectId
+        if not ObjectId.is_valid(game_id):
+            raise HTTPException(status_code=400, detail="Invalid game ID format")
+        game_object_id = ObjectId(game_id)
+        
+        # Remove pin
+        updated = await db.users.update_one(
+            {"_id": user.id},
+            {
+                "$pull": {
+                    "pinned": game_object_id
+                }
+            }
+        )
+        
+        if updated.modified_count == 0:
+            return {"message": "Game was not pinned", "pinned": False}
+            
+        return {
+            "message": "Game unpinned successfully",
+            "pinned": False,
+            "game_id": str(game_object_id)
+        }
+        
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Invalid game ID format")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
 
 @router.get('/avatar/{id}')
 async def get_avatar(db: Database, id: str):
@@ -358,7 +495,6 @@ async def get_avatar(db: Database, id: str):
             detail=f"{id} is an invalid user ID"
         )
     except Exception as e:
-        print(e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while retrieving the avatar"

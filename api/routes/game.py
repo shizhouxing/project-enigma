@@ -6,8 +6,9 @@ from sse_starlette.sse import EventSourceResponse
 
 from api.deps import Database
 from api.crud import get_game_from_id, get_games
-from api.models import GamePublic, StreamResponse
+from api.models import Game, StreamResponse
 from api.utils import handleStreamResponse
+
 
 
 router = APIRouter()
@@ -17,7 +18,7 @@ async def get_all_games(
     db : Database,
     s : int,
     l : Optional[int] = None
-) -> List[Dict]:
+) -> List[Game]:
     """
     Get all games and convert them to GamePublic model.
     Accessible via both /game/ and /game
@@ -26,11 +27,11 @@ async def get_all_games(
         response = []
         async for game in get_games(db=db, skip=s, limit=l):
                 response.append(
-                     GamePublic(
+                     Game(
                           id=str(game.id),
                           title=game.title,
                           image=game.image
-                    ).model_dump(exclude_none=True)
+                    ).to_dict()
                 )
         return response
     except HTTPException as e:
@@ -53,7 +54,7 @@ async def get_all_games_stream(
             yield StreamResponse(
                     event="message",
                     id="game",
-                    data=GamePublic(
+                    data=Game(
                         id=str(game.id),
                         title=game.title,
                         image=game.image
