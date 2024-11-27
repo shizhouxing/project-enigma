@@ -441,6 +441,7 @@ class GameSessionPublic(BaseModelWithUtils):
     create_time: Optional[datetime] = None
     completed_time: Optional[datetime] = None
     outcome: Optional[str] = None
+    description : Optional[str] = None
     
     metadata: GameSessionMetadata = Field(default_factory=GameSessionMetadata)
     completed: bool = False
@@ -606,7 +607,8 @@ class GameReadOnly(GameSessionHistoryItem):
 
 class GameSessionTitleRequest(BaseModelWithUtils):
     """Request model for updating game session title"""
-    message_content: str = Field(..., min_length=1, max_length=200)
+    message_content: Optional[str] = Field(..., min_length=1, max_length=200)
+    generate : bool = True
     
     def generate_title(self) -> str:
         """Generate a title from message content"""

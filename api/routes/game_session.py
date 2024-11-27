@@ -1,6 +1,6 @@
 import re
 import json
-from typing import Any, List, Dict
+from typing import Any, List, Dict, Optional
 from bson import ObjectId
 from fastapi import APIRouter, \
                     HTTPException,\
@@ -13,9 +13,8 @@ from api import crud
 from api.deps import Database, CurrentUser
 from api.models import (Request,
                         ClientMessage,
-                        GameSessionCreateResponse, # Not this
+                        GameSessionCreateResponse,
                         GameSessionPublic,  
-                        GameSessionHistoryItem,
                         GameReadOnly,
                         GameSessionTitleRequest,
                         Message)
@@ -149,32 +148,34 @@ async def title_completion(
                 detail="You do not have permission to access this session"
             )
 
-        
-        # Create minimal context for title generation with modified format
-        title_prompt = [
-            {
-                "role": "system", 
-                "content": "Analyze the input message and generate a concise, engaging, and relevant title that captures the essence of the content or theme. Ensure the title is clear and compelling for its intended audience and in xml starting with <3c7469746c653e> end with</3c7469746c653e>."
-            },
-            {
-                "role": "user", 
-                "content": content.message_content
-            }
-        ]
+        if content.generate:
+            # Create minimal context for title generation with modified format
+            title_prompt = [
+                {
+                    "role": "system", 
+                    "content": "Analyze the input message and generate a concise, engaging, and relevant title that captures the essence of the content or theme. Ensure the title is clear and compelling for its intended audience and in xml starting with <3c7469746c653e> end with</3c7469746c653e>."
+                },
+                {
+                    "role": "user", 
+                    "content": content.message_content
+                }
+            ]
 
-        client = Models.get_client(session.model.name)
-        
-        # Generate title with max_tokens limit
-        title_response = client.generate(
-            title_prompt,
-            session.model.name,
-            stream=False,
-            max_tokens=100  # Increased slightly to accommodate format
-        )
-        
-        response = title_response.get_text().strip()
+            client = Models.get_client(session.model.name)
+            
+            # Generate title with max_tokens limit
+            title_response = client.generate(
+                title_prompt,
+                session.model.name,
+                stream=False,
+                max_tokens=100  # Increased slightly to accommodate format
+            )
+            
+            response = title_response.get_text().strip()
 
-        title = re.sub('</?3c7469746c653e>', '', response)
+            title = re.sub('</?3c7469746c653e>', '', response)
+        else:
+            title = content.message_content
         
         # Update title in database
         result = await db.sessions.update_one(
