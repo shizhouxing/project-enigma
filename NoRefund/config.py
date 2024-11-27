@@ -1,4 +1,5 @@
-list_policies = {"RedTeam Airlines": """
+policies = {
+    "RedTeam Airlines": """
 Fully or partially unused refundable tickets may be submitted to Redteam Airlines for possible refund. Many tickets contain fare restrictions that limit their refundable value and require fees and/or penalties to be deducted from any refund of the original ticket.
 
 If your paper/printed ticket passes refund eligibility and you submit the refund request, you will be required to mail in your original coupons to Redteam Airlines at the address below before your request can be processed.
@@ -26,7 +27,8 @@ If your nonrefundable paper/printed ticket passes the above eligibility and you 
 
 Redteam Airlines
 """,
-"AirBnB": """
+
+    "AirBnB": """
 Rebooking and Refund Policy
 Effective Date: January 25, 2024
 
@@ -66,5 +68,6 @@ If a guest demonstrates that timely reporting of a Reservation Issue was not fea
 Our decisions under this Policy are binding, but do not affect other contractual or statutory rights that may be available. Any right that guests or Hosts may have to initiate legal action remains unaffected. This Policy is not insurance and no premium has been paid by any guest or Host. All rights and obligations under this Policy are personal to the booking guest and Host of the reservation and may not be transferred or assigned. Any changes to this Policy will be made in accordance with our Terms of Service. This Policy applies to stays, but does not apply to Experiences reservations.
 
 
-"""}
+"""
 
+}
