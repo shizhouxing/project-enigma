@@ -117,7 +117,7 @@ export async function getSession(
 
     const data = await handleResponse<GameSessionPublic>(response);
 
-    console.log("session", data);
+    // console.log("session", data);
     // if (data.outcome === "win" || data.outcome === "loss") {
     //   HISTORY_CACHE.set(key, {
     //     data,
@@ -177,7 +177,8 @@ export async function createChat(
 export async function createTitle(
   session_id: string,
   user_id: string,
-  messageContent: string
+  messageContent: string,
+  generate : boolean = true
 ): Promise<MessageTypeResponse> {
   const cookieStore = await cookies();
   const authToken = cookieStore.get("sessionKey")?.value;
@@ -189,10 +190,11 @@ export async function createTitle(
   // Correcting the data structure
   const dataToSend = {
     message_content: messageContent,
+    generate
     // Include other fields here if necessary based on the API's expected schema
   };
 
-  console.log("Sending data:", JSON.stringify(dataToSend));
+  // console.log("Sending data:", JSON.stringify(dataToSend));
 
   try {
     const response = await fetch(

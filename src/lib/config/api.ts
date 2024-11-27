@@ -9,7 +9,7 @@ export const API_CONFIG = {
             LOGOUT: '/api/logout',
             AVAILABLE : '/api/available-username'
         },
-        GAME : '/api/game/'
+        GAME : '/api/game'
     },
     DEFAULT_HEADERS: {
         'Content-Type': 'application/json',

@@ -12,7 +12,7 @@ export async function getGameStream(skip: number = 0, include: number = 0): Prom
   const cached = GAMES_CACHE.get(cacheKey);
   // Return cached data if it's still valid
   if (cached && (now - cached.timestamp) / 1000 < CACHE_DURATION) {
-    console.log("return cache games")
+    // console.log("return cache games")
     return cached.data as Game[];
   }
   
@@ -30,21 +30,21 @@ export async function getGames(skip: number = 0, include: number = 0): Promise<G
   const cached = GAMES_CACHE.get(cacheKey);
 
   // Return cached data if it's still valid
-  // if (cached && (now - cached.timestamp) / 1000 < CACHE_DURATION) {
-  //   return cached.data as Game[];
-  // }
+  if (cached && (now - cached.timestamp) / 1000 < CACHE_DURATION) {
+    return cached.data as Game[];
+  }
 
   try {
     const response = await fetch(
-      `${process.env.FRONTEND_HOST}${API_CONFIG.ENDPOINTS.GAME}?s=${skip}`,
+      `${API_CONFIG.ENDPOINTS.GAME}?s=${skip}`,
       {
         headers: {
           "Content-Type": "application/json",
           "Accept": "application/json",
         },
-        // next: {
-        //   revalidate: CACHE_DURATION, // Next.js 13+ cache configuration
-        // },
+        next: {
+          revalidate: CACHE_DURATION, // Next.js 13+ cache configuration
+        },
       }
     );
 
@@ -88,7 +88,7 @@ export async function getGamesFromId(id: string): Promise<Game | GameErrorRespon
 
   try {
     const response = await fetch(
-      `${process.env.FRONTEND_HOST}${API_CONFIG.ENDPOINTS.GAME}${id}`,
+      `${process.env.FRONTEND_HOST}${API_CONFIG.ENDPOINTS.GAME}/${id}`,
       {
         headers: {
           "Content-Type": "application/json",
