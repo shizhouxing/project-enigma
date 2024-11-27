@@ -29,7 +29,7 @@ export default async function AuthenticationPage() {
 
   return (
     <AuthMonitor>
-    <div className="min-h-screen flex flex-col md:grid md:grid-cols-2 md:grid-flow-col">
+    <div className="z-20 min-h-screen w-full flex flex-col md:grid md:grid-cols-2 md:grid-flow-col">
       {/* Left section with testimonial - hidden on mobile, shown on md+ screens */}
       <div className="hidden md:flex bg-black p-8 flex-col justify-between relative overflow-hidden">
         <NoisePattern />

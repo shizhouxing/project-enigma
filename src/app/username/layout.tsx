@@ -1,18 +1,15 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import "./globals.css";
+import "../globals.css";
 import { Toaster } from "@/components/ui/toaster";
-import { UserProvider } from "@/context/user";
-import { SidebarProvider } from "@/components/ui/sidebar";
-
 
 const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
+  src: "../fonts/GeistVF.woff",
   variable: "--font-geist-sans",
   weight: "100 900",
 });
 const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
+  src: "../fonts/GeistMonoVF.woff",
   variable: "--font-geist-mono",
   weight: "100 900",
 });
@@ -29,20 +26,11 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  
+
   return (
-    <html lang="en" className="dark">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-zinc-950`}
-      >
-        <SidebarProvider>
-          <UserProvider>
-            <div className="flex min-h-screen w-full">
-              {children}
-            </div>
-          </UserProvider>
-        </SidebarProvider>
-        <Toaster />
-      </body>
-    </html>
+    <>
+            {children}
+    </>
   );
 }

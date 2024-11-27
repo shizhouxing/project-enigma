@@ -1,8 +1,7 @@
-// app/username/page.tsx
 "use client";
 
-import { createUsername } from "@/service/user";
-import { useState } from "react";
+import { createUsername, getUser } from "@/service/user";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -13,30 +12,45 @@ import {
 import { Button } from "@/components/ui/button";
 import { DeleteSessionKey } from "@/service/auth";
 import { useNotification } from "@/components/toast";
+import { useUser } from "@/context/user";
 
 export default function UsernamePage() {
+  
+
   const [username, setUsername] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
+  const { dispatch, setIsLoading : setIsWaitingForUsername } = useUser();
   const router = useRouter();
   const notification = useNotification();
+
+  useEffect(() => {
+    setIsWaitingForUsername(true)
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setIsLoading(true);
 
-    console.log(username);
     try {
       const result = await createUsername(username);
 
       if (result.ok) {
-        notification.showSuccess(`Welcome to RedArena ${username}`)
-        if (window.history?.length && window.history.length > 1) {
-          router.back();
-        } else {
-          router.push("/");
-        }
+        const user = await getUser();
+        dispatch({
+          type: "SET_USER",
+          payload: {
+            id: user.id ?? null,
+            username: user.username ?? null,
+            image: user.image ?? null,
+            history: user.history ?? [],
+            pinned: user.pinned ?? [],
+          },
+        });
+        notification.showSuccess(`Welcome to RedArena ${username}`);
+        setIsWaitingForUsername(false)
+        router.push("/");
       } else {
         setError(result.message || "Failed to update username");
       }
@@ -44,12 +58,12 @@ export default function UsernamePage() {
       setError(err.message || "An unexpected error occurred");
     } finally {
       setIsLoading(false);
+      
     }
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4">
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#18181b_1px,transparent_1px),linear-gradient(to_bottom,#18181b_1px,transparent_1px)] bg-[size:30px_30px] -z-10" />
+    <div className="fixed min-h-screen w-full flex flex-col items-center justify-center p-4 z-20 bg-black">
       <Card className="w-full max-w-md bg-black border-zinc-800">
         <CardHeader>
           <h1 className="text-3xl font-medium text-white text-center">
