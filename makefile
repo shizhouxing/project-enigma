@@ -13,3 +13,5 @@ frontend:
 	[ -d "node_modules" ] || npm install --legacy-peer-deps
 	npm run next-dev
 
+build:
+	npm run build
