@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   description: "...",
 };
 
-export default function SubGameRootLayout({
+export default function SubLeaderboardRootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;

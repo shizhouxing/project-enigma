@@ -1,6 +1,6 @@
 import { AppSidebar, SideBarCloseButton } from "@/components/sidebar";
 
-export default function SubGameRootLayout({
+export default function SubChatRoot({
   children,
 }: Readonly<{
   children: React.ReactNode;
