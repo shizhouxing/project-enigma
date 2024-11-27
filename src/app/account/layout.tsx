@@ -1,6 +1,4 @@
-import Loading from "@/components/loading";
 import { AppSidebar, SideBarCloseButton } from "@/components/sidebar";
-import { Suspense } from "react";
 
 export default function AccountLayout({
   children,
