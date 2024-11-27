@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from "react";
 
 interface TimerHookReturn {
   seconds: number;
@@ -6,7 +6,7 @@ interface TimerHookReturn {
   isComplete: boolean;
   start: () => void;
   pause: () => void;
-  reset: (time : number) => void;
+  reset: (time: number) => void;
   formatTime: () => string;
 }
 
@@ -16,13 +16,14 @@ interface TimerHookReturn {
  * @returns Object containing timer state and control functions
  */
 const useTimer = (initialSeconds: number): TimerHookReturn => {
-  
-  const [seconds, setSeconds] = useState<number>(Math.floor(initialSeconds / 60));
+  const [seconds, setSeconds] = useState<number>(
+    Math.floor(initialSeconds / 60)
+  );
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isComplete, setIsComplete] = useState<boolean>(false);
 
   // Reset timer to initial value
-  const reset = useCallback((time : number): void => {
+  const reset = useCallback((time: number): void => {
     setSeconds(time);
     setIsRunning(false);
     setIsComplete(false);
@@ -45,7 +46,9 @@ const useTimer = (initialSeconds: number): TimerHookReturn => {
   const formatTime = useCallback((): string => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
-    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+    return `${minutes.toString().padStart(2, "0")}:${remainingSeconds
+      .toString()
+      .padStart(2, "0")}`;
   }, [seconds]);
 
   useEffect(() => {
@@ -55,7 +58,7 @@ const useTimer = (initialSeconds: number): TimerHookReturn => {
       intervalId = setInterval(() => {
         setSeconds((prevSeconds) => {
           if (prevSeconds <= 1) {
-            console.log(prevSeconds)
+            // console.log(prevSeconds)
             setIsRunning(false);
             setIsComplete(true);
             return 0;

@@ -83,7 +83,6 @@ export const useGameForceExit = ({
         handleForfeit();
       } else {
         // Prevent navigation if user cancels
-        router.events?.emit('routeChangeError');
         throw 'Route change cancelled';
       }
     };
@@ -91,13 +90,11 @@ export const useGameForceExit = ({
     // Set up event listeners
     window.addEventListener('beforeunload', handleBeforeUnload);
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    router.events?.on('routeChangeStart', handleRouteChange);
 
     // Cleanup event listeners
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       document.addEventListener('visibilitychange', handleVisibilityChange);
-      router.events?.off('routeChangeStart', handleRouteChange);
     };
   }, [alertOnExit, sessionId, onForfeit, warningMessage, router]);
 

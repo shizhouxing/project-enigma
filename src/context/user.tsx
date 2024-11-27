@@ -34,6 +34,7 @@ interface UserContextType {
   state: UserState;
   dispatch: React.Dispatch<UserAction>;
   isLoading: boolean;
+  setIsLoading : React.Dispatch<boolean>;
   handlePin: (id: string, image: string, title: string) => Promise<void>;
   handleUnpin: (id: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -210,6 +211,7 @@ function UserProvider({ children }: { children: React.ReactNode }) {
     state,
     dispatch,
     isLoading,
+    setIsLoading,
     handlePin,
     handleUnpin,
     logout,
