@@ -9,6 +9,29 @@ const config: Config = {
   ],
   theme: {
   	extend: {
+		keyframes : {
+			typing: {
+				"0%": {
+				  width: "0%",
+				  visibility: "hidden"
+				},
+				"100%": {
+				  width: "100%"
+				}  
+			},
+			blink: {
+				"50%": {
+				  borderColor: "transparent"
+				},
+				"100%": {
+				  borderColor: "white"
+				}  
+			  }
+		}, 
+		animation : {
+			typing : "typing 1.5s ease-in",
+			blinking : "blink 0.7s ease-in"
+		},
 		fontSize: {
 			'xxs': '0.625rem', // Add a custom size (10px)
 		},
