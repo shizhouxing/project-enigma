@@ -47,7 +47,8 @@ app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url="/openapi.json",
     generate_unique_id_function=custom_generate_unique_id,
-    lifespan=lifespan
+    lifespan=lifespan,
+    docs_url=None,
 )
 
 if settings.all_cors_origins:
