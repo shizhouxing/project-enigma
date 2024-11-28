@@ -1,20 +1,19 @@
-# Stage 1: Install Python dependencies for FastAPI
-FROM python:3.9-slim AS backend
+# Stage 1: Install Node.js dependencies for Next.js
+FROM node:18-alpine AS frontend
 WORKDIR /app
 
-# Copy Python dependencies and install them
-COPY requirements.txt /app/
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy Node.js dependencies and install them
+COPY package*.json ./
+RUN npm install --legacy-peer-deps
 
-# Copy backend code
-COPY api/ /app/api/
+# Copy frontend code
+COPY . .
 
-# Create and activate virtual environment
-RUN python3 -m venv /app/.venv
-RUN source /app/.venv/bin/activate && pip install --no-cache-dir -r requirements.txt
+# Build the Next.js project
+RUN npm run build
 
-# Expose the FastAPI port
-EXPOSE 8000
+# Expose the Next.js port
+EXPOSE 3000
 
-# Command to run FastAPI
-CMD ["source /app/.venv/bin/activate && uvicorn api.main:app --host 0.0.0.0 --port 8000"]
+# Command to run Next.js in development mode
+CMD ["npm", "start"]
