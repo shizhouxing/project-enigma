@@ -13,7 +13,7 @@ from api.utils import handleStreamResponse
 
 router = APIRouter()
 
-@router.get("/")
+@router.get("/game")
 async def get_all_games(
     db : Database,
     s : int,
@@ -37,7 +37,7 @@ async def get_all_games(
     except HTTPException as e:
         raise e
     
-@router.get("/stream")
+@router.get("/game/stream")
 async def get_all_games_stream(
     db : Database,
     s : int,
@@ -66,7 +66,7 @@ async def get_all_games_stream(
 
 
 
-@router.get("/{id}")
+@router.get("/game/{id}")
 async def game_from_id(db : Database, id : str) -> Any:
     response = await get_game_from_id(db=db, id=id)
     return response

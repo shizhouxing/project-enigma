@@ -63,7 +63,7 @@ if settings.all_cors_origins:
 
 app.include_router(login.router)
 app.include_router(user.router,  tags=["User"])
-app.include_router(game.router, prefix="/game", tags=["Game"])
+app.include_router(game.router, tags=["Game"])
 app.include_router(models.router, prefix="/model", tags=["Model"])
 app.include_router(game_session.router)
 app.include_router(health.router)
