@@ -16,9 +16,16 @@ COPY . .
 FROM node:18-alpine
 WORKDIR /app
 
+# Install Python in the final image
+RUN apk add --no-cache python3 py3-pip
+
 # Copy both backend and frontend files
 COPY --from=backend /app /app
 COPY --from=frontend /app /app
+
+RUN python -m venv .venv
+RUN source .venv/bin/activate
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Install additional dev tools for the final container
 RUN npm install -g concurrently
@@ -29,4 +36,3 @@ EXPOSE 3000 51234
 
 # Use the dev script for both servers
 CMD ["npx", "concurrently", "\"npm start\"", "\"npm run fastapi-dev\""]
-
