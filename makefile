@@ -15,3 +15,6 @@ frontend:
 
 build:
 	npm run build
+
+container:
+	docker build -f Dockerfile -t redarena-fullstack:test .
