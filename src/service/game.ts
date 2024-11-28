@@ -36,7 +36,7 @@ export async function getGames(skip: number = 0, include: number = 0): Promise<G
 
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_BACKEND_HOST}/game?s=${skip}`,
+      `${process.env.NEXT_PUBLIC_BACKEND_HOST || "https://backend-620119407459.us-central1.run.app"}/game?s=${skip}`,
       {
         headers: {
           "Content-Type": "application/json",
