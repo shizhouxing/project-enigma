@@ -23,7 +23,7 @@ COPY --from=frontend /app /app
 # Install additional dev tools for the final container
 RUN npm install -g concurrently
 
-RUN npm build
+RUN npm run build
 # Expose ports for development
 EXPOSE 3000 51234
 
