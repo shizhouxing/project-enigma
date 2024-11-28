@@ -16,13 +16,14 @@ const nextConfig: NextConfig = {
     ],
   },
   rewrites: async () => {
+    const backendHost = process.env.BACKEND_HOST || 'http://127.0.0.1'; // Fallback to localhost if not set
     return [
       {
         source: "/api/:path*",
         destination:
           process.env.NODE_ENV === "development"
-            ? "http://127.0.0.1:8000/:path*"
-            : `http://0.0.0.0:8000/:path*`,
+            ? `${backendHost}:8000/:path*`
+            : `${process.env.BACKEND_HOST}/:path*`,
       },
     ];
   },
