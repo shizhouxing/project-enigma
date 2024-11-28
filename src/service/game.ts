@@ -33,14 +33,12 @@ export async function getGames(skip: number = 0, include: number = 0): Promise<G
   if (cached && (now - cached.timestamp) / 1000 < CACHE_DURATION) {
     return cached.data as Game[];
   }
-
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_BACKEND_HOST || "https://backend-620119407459.us-central1.run.app"}/game?s=${skip}`,
+      `${process.env.FRONTEND_HOST || "https://backend-620119407459.us-central1.run.app/"}/game?s=${skip}`,
       {
         headers: {
           "Content-Type": "application/json",
-          "Accept": "application/json",
         },
         next: {
           revalidate: CACHE_DURATION, // Next.js 13+ cache configuration
