@@ -36,7 +36,7 @@ export async function getGames(skip: number = 0, include: number = 0): Promise<G
 
   try {
     const response = await fetch(
-      `${API_CONFIG.ENDPOINTS.GAME}?s=${skip}`,
+      `${process.env.FRONTEND_HOST}${API_CONFIG.ENDPOINTS.GAME}?s=${skip}`,
       {
         headers: {
           "Content-Type": "application/json",
