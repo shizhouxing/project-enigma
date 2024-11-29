@@ -2,7 +2,7 @@ import os
 from typing import Any, Dict, List
 from .types import CompletionResponse
 from .factory import CompletionFactory
-from .providers import OpenAICompletionStrategy
+from .providers import OpenAICompletionStrategy, AnthropicCompletionStrategy
 from ..registry import ModelRegistry
 try:
     from openai import OpenAI
@@ -10,8 +10,15 @@ try:
 except ImportError:
     OPENAI_MODULE_AVAILABLE = False
 
+try:
+    from anthropic import Anthropic
+    ANTHROPIC_MODULE_AVAILABLE = True
+except ImportError:
+    ANTHROPIC_MODULE_AVAILABLE = False
+
 
 CompletionFactory.register_strategy("openai", OpenAICompletionStrategy)
+CompletionFactory.register_strategy("anthropic", AnthropicCompletionStrategy)
 
 @ModelRegistry.register(
     configs=[{
@@ -21,6 +28,12 @@ CompletionFactory.register_strategy("openai", OpenAICompletionStrategy)
         # init constants
         "base_url" : "https://api.openai.com/v1",
         "api_key"  : os.getenv("OPENAI_API_KEY", None),
+    },
+    {
+        # registry location
+        "name" : "claude-3-5-sonnet-20241022",
+        "provider" : "anthropic",
+        "api_key"  : os.getenv("ANTHROPIC_API_KEY", None),
     }]
 )
 class Client:
@@ -39,6 +52,11 @@ class Client:
             )
             self._strategy = CompletionFactory\
                 .create_strategy("openai", 
+                                 self._client)
+        if ANTHROPIC_MODULE_AVAILABLE and provider == "anthropic":
+            self._client = Anthropic(api_key=api_key)
+            self._strategy = CompletionFactory\
+                .create_strategy("anthropic",
                                  self._client)
     
     def generate(
