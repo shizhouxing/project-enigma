@@ -484,6 +484,7 @@ async def get_session_from_shared_id(*, shared_id: str, db: Database):
                 "outcome": 1,
                 "completed_time": 1,
                 "create_time": 1,
+                "description" : 1,
                 "user": {
                     "username" : 1,
                 },

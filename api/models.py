@@ -425,11 +425,11 @@ class GameSessionPublic(BaseModelWithUtils):
         }
     )
 
-    id: ObjectId = Field(default_factory=ObjectId)
-    user_id: Optional[ObjectId] = None
-    game_id: Optional[ObjectId] = None
-    judge_id: Optional[ObjectId] = None
-    agent_id: Optional[ObjectId] = None
+    id: Optional[ObjectId | str] = Field(default_factory=ObjectId)
+    user_id: Optional[ObjectId | str] = None
+    game_id: Optional[ObjectId | str] = None
+    judge_id: Optional[ObjectId | str] = None
+    agent_id: Optional[ObjectId | str] = None
     
     user: Optional[UserPublic] = None
     model: Optional[ModelPublic] = None
@@ -587,7 +587,7 @@ class GameReadOnly(GameSessionHistoryItem):
     history: List[ClientMessage] = Field(default_factory=list)
     model: Optional[ModelPublic] = None
     metadata: GameSessionMetadata = Field(default_factory=GameSessionMetadata)
-
+    description : Optional[str] = None
 
 
     @classmethod

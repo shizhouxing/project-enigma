@@ -487,8 +487,8 @@ async def get_shared_conversation(
         duration=duration,
         last_message=session.completed_time,
         history=session.history,
-        model=session.model
-        
+        model=session.model,
+        description=session.description
     )
 
     return response_data
@@ -554,7 +554,7 @@ async def get_session_history(
     id: str,
     user_id: str,
     db : Database
-) -> Dict[str, Any]:
+) -> GameReadOnly:
     """
     Retrieves the chat history of session_id of current user
 
@@ -586,7 +586,8 @@ async def get_session_history(
         outcome=session.outcome,
         duration=duration,
         last_message=session.completed_time,
-        history=session.history
+        history=session.history,
+        description=session.description
     )
 
     return response_data
