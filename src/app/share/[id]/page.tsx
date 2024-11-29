@@ -93,6 +93,8 @@ export default async function Share({ params }: SharedChatPageProps) {
     redirect("/");
   }
 
+  console.log(sharedGame.description)
+
   return (
     <SharedConversation
       outcome={sharedGame.outcome ?? undefined}
@@ -101,6 +103,7 @@ export default async function Share({ params }: SharedChatPageProps) {
       history={sharedGame.history ?? []}
       modelImage={sharedGame.model?.image}
       modelName={sharedGame.model?.name}
+      description={sharedGame.description ?? "No Objective"}
     />
   );
 }

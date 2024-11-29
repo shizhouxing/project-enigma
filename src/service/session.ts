@@ -23,6 +23,7 @@ export interface GameSessionReadOnly {
   last_message?: string;
   history?: any[];
   model?: Model | null;
+  description? : string;
 }
 
 export type GameSessionReadOnlyResponse =
@@ -140,7 +141,7 @@ export async function createChat(
   const authToken = cookieStore.get("sessionKey")?.value;
 
   if (!authToken) {
-    return { ok: false, error: "Token does not exist" };
+    return { ok: false, error: "Session token does not exist" };
   }
 
   try {
@@ -396,9 +397,9 @@ export async function getSharedSession(
       headers: {
         "Content-Type": "application/json",
       },
-      next: {
-        revalidate: CACHE_DURATION, // Next.js 13+ cache configuration
-      },
+      // next: {
+      //   revalidate: CACHE_DURATION, // Next.js 13+ cache configuration
+      // },
     });
 
     if (!response.ok) {

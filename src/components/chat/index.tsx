@@ -46,6 +46,7 @@ interface SharedGameProps {
   modelName?: string;
   modelImage?: string;
   userImage?: string;
+  description?: string;
 }
 
 interface ChatComponentProps {
@@ -59,7 +60,10 @@ export const SharedConversation = ({
   history,
   modelName,
   modelImage,
+  description,
 }: SharedGameProps) => {
+  const [showTargetModal, setShowTargetModal] = useState(false);
+
   return (
     <TooltipProvider>
       <div className="flex flex-col h-screen mx-auto relative w-full max-w-3xl">
@@ -75,7 +79,7 @@ export const SharedConversation = ({
                 alt={modelName}
                 className="h-6 w-6 object-cover rounded-xl border-[1px] border-zinc-500"
               />
-              <span className="text-md font-normal text-white">
+              <span className="text-md font-normal text-white select-none cursor-default">
                 {modelName}
               </span>
             </div>
@@ -96,6 +100,23 @@ export const SharedConversation = ({
               </TooltipContent>
             </Tooltip>
           )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-xl bg-zinc-800/50 border border-zinc-700/50 hover:bg-zinc-700/50"
+                onClick={() => {
+                  setShowTargetModal(true);
+                }}
+              >
+                <Target className="h-4 w-4 text-zinc-200" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Objective</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         {/* Messages area */}
@@ -134,7 +155,41 @@ export const SharedConversation = ({
             )}
           </div>
         </ScrollArea>
-
+        <Dialog
+          open={showTargetModal}
+          onOpenChange={() => {
+            // Do nothing when trying to close via outside click or escape
+            return;
+          }}
+        >
+          <DialogContent
+            className="sm:max-w-[425px]"
+            // Prevent closing by clicking outside
+            onPointerDownOutside={(e) => e.preventDefault()}
+            // Prevent closing by pressing escape
+            onEscapeKeyDown={(e) => e.preventDefault()}
+          >
+            <DialogHeader className="text-center">
+              <DialogTitle>Game Objective</DialogTitle>
+              <DialogDescription>
+                <br className="mb-4" />
+                <span className=" font-bold text-white mt-3">
+                  Objective
+                </span>: {description}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setShowTargetModal(false);
+                }}
+              >
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         {/* Bottom gradient */}
         <div className="absolute bottom-0 w-full bg-gradient-to-b from-transparent to-zinc-950 z-10 h-[70px]" />
       </div>
