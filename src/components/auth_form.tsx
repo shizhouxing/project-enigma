@@ -80,7 +80,6 @@ export const AuthForms = ({
           payload : {
             id : user.id ?? null, 
             username : user.username ?? null,
-            image : user.image ?? null,
             history : user.history ?? [],
             pinned : user.pinned ?? []
           }
