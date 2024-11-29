@@ -1,10 +1,4 @@
 import { AppSidebar, SideBarCloseButton } from "@/components/sidebar";
-import type { Metadata } from "next";
-
-export const metadata: Metadata = {
-  title: "RedArena Games",
-  description: "...",
-};
 
 export default function SubGameRootLayout({
   children,

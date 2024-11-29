@@ -1,26 +1,9 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
-import "./globals.css";
-import { Toaster } from "@/components/ui/toaster";
-import { UserProvider } from "@/context/user";
-import { SidebarProvider } from "@/components/ui/sidebar";
-
-
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
-});
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-  weight: "100 900",
-});
-
+import "../globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://project-enigma-620119407459.us-central1.run.app/"),
-  title: "RedArena",
+  title: "RedArena Terms Of Service",
   description:
     "A community-driven redteaming platform",
   keywords: [
@@ -31,12 +14,13 @@ export const metadata: Metadata = {
       "artificial intelligence",
       "developer tools",
       "AI research",
+      "Term Of Service"
     ],
   authors: [{ name: "RedArena Team" }, { name: "LLMSYS", url: "https://lmsys.org/" }, { name : "Luca Vivona" }] ,
   openGraph: {
     type: "website",
     url: "",
-    title: "RedArena",
+    title: "RedArena Terms Of Service",
     description:
       "A community-driven redteaming platform",
     images: [
@@ -51,7 +35,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     site: "@lmarena_ai", // Replace with your actual Twitter handle
-    title: "RedArena",
+    title: "RedArena Terms Of Service",
     description:
       "A community-driven redteaming platform",
     images: [
@@ -66,25 +50,10 @@ export const metadata: Metadata = {
   // Add more metadata as needed
 };
 
-export default function RootLayout({
+export default function TOSRootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return (
-    <html lang="en" className="dark">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-zinc-950`}
-      >
-        <SidebarProvider>
-          <UserProvider>
-            <div className="flex min-h-screen w-full">
-              {children}
-            </div>
-          </UserProvider>
-        </SidebarProvider>
-        <Toaster />
-      </body>
-    </html>
-  );
+  return <>{children}</>;
 }

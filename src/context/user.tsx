@@ -134,7 +134,6 @@ function UserProvider({ children }: { children: React.ReactNode }) {
   const handlePin = async (id: string, image: string, title: string) => {
     if (!checkAuthorization()) return;
 
-    setIsLoading(true);
     const response = await pinGame(id);
 
     if (response.ok) {
@@ -150,13 +149,11 @@ function UserProvider({ children }: { children: React.ReactNode }) {
           : `Something went wrong, ${title} was not pinned to sidebar`
       );
     }
-    setIsLoading(false);
   };
 
   const handleUnpin = async (id: string) => {
     if (!checkAuthorization()) return;
 
-    setIsLoading(true);
     const response = await unpinGame(id);
 
     if (response.ok) {
@@ -169,7 +166,6 @@ function UserProvider({ children }: { children: React.ReactNode }) {
           : "Something went wrong when un-pinning game"
       );
     }
-    setIsLoading(false);
   };
 
   const logout = async () => {

@@ -6,6 +6,7 @@ import { Game } from "@/types/game";
 import Link from "next/link";
 import { Input } from "../ui/input";
 import { Search } from "lucide-react";
+import Loading from "../loading";
 
 function GameCardComponent({ game }: { game: Game }) {
   return (
@@ -40,9 +41,9 @@ const GameCardGallery = ({ games }: { games: Game[] }) => {
 
   if (!validGames || validGames.length === 0) {
     return (
-      <div className="text-center text-muted-foreground py-8">
-        No Games Currently Available
-      </div>
+      <Loading 
+        fullScreen
+        className="flex items-center justify-center w-full h-screen text-center relative"/>
     );
   }
 
