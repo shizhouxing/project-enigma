@@ -44,7 +44,8 @@ export function GameDetails({ game }: GameDetailsProps) {
   const handlePlayNow = async () => {
     const chat = await createChat(game.id);
     if(!chat.ok){
-      notification.showError(chat.error ?? "Could not create new Chat ")
+      notification.showWarning(chat.error ?? "Could not create new Chat ")
+      return;
     }
     notification.showSuccess("Game session created")
     router.push(`/c/${chat.session_id}`)
