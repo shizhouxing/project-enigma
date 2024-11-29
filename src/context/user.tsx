@@ -15,7 +15,6 @@ import { deleteSession } from "@/service/session";
 interface UserState {
   id: string | null;
   username: string | null;
-  image: string | null;
   history: { _id: string; title: string }[];
   pinned: any[];
 }
@@ -46,7 +45,6 @@ interface UserContextType {
 const initialState: UserState = {
   id: null,
   username: null,
-  image: null,
   pinned: [],
   history: [],
 };
@@ -68,7 +66,7 @@ function userReducer(state: UserState, action: UserAction): UserState {
     case "UPDATE_USERNAME":
       return { ...state, username: action.payload };
     case "UPDATE_IMAGE":
-      return { ...state, image: action.payload };
+      return { ...state };
     case "CLEAR_USER":
       return { ...initialState };
     case "PIN_GAME":
@@ -103,7 +101,6 @@ function UserProvider({ children }: { children: React.ReactNode }) {
             ? {
                 id: response.id ?? null,
                 username: response.username ?? null,
-                image: response.image ?? null,
                 history: response.history ?? [],
                 pinned: response.pinned ?? [],
               }

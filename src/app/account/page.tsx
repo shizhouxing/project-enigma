@@ -113,7 +113,7 @@ export default function Profile() {
                 <Avatar className=" relative">
                   <AvatarImage
                     className="min-w-20 max-w-40 min-h-20 max-h-40 sm:h-40 sm:w-40 w-32 h-32 rounded-full"
-                    src={user.image ?? undefined}
+                    src={user.id ? `/api/avatar/${user.id}` :  undefined}
                     alt={user.username ?? "username"}
                   />
                   <AvatarFallback className=" flex items-center justify-center text-2xl bg-gray-200 text-gray-700 rounded-full">

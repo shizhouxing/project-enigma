@@ -300,7 +300,7 @@ const SidebarDropDownMenu = () => {
             size="icon"
           >
             <Avatar className="w-8 h-8 rounded-3xl">
-              <AvatarImage src={user.image ?? "vercel.svg"} />
+              <AvatarImage src={user.id ? `/api/avatar/${user.id}` : "/vercel.svg"} />
               <AvatarFallback>??</AvatarFallback>
             </Avatar>
             {/* <span className="font-medium">{user.username ?? "Username"}</span> */}

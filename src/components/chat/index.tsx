@@ -266,7 +266,7 @@ export const ChatComponent = ({
           // Decode and append the chunk to the buffer
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split("\n");
-
+          let content = "";
           // Process all complete lines
           for (let i = 0; i < lines.length - 1; i++) {
             const line = lines[i].trim();
@@ -278,6 +278,7 @@ export const ChatComponent = ({
               switch (chunk.event) {
                 case "message":
                   handleNewMessage(chunk.content);
+                  content = content + chunk.content
                   break;
 
                 case "error":
@@ -286,7 +287,12 @@ export const ChatComponent = ({
 
                 case "end":
                   if (chunk.outcome === "win") {
-                    await handleSessionEnd(messages, chunk.outcome);
+                    pause();
+                    const msgs = messages.length === 0 ? ["", content] : messages
+                    await handleSessionEnd(msgs, chunk.outcome);
+
+                    // 
+
                   }
                   break;
 
@@ -338,7 +344,6 @@ export const ChatComponent = ({
 
   // Helper to handle session end
   const handleSessionEnd = async (messages: any, outcome: any) => {
-    console.log(session.id, user.id);
     if (session.id && user.id) {
       if (messages.length >= 2) {
         const messageContent = `Message:${messages
@@ -372,6 +377,7 @@ export const ChatComponent = ({
         if (!endResponse.ok) {
           throw new Error(`Failed to process game end: ${endResponse.message}`);
         }
+        
       }
 
       router.refresh();
@@ -713,7 +719,7 @@ export const ChatComponent = ({
                       {message.role === "user" && (
                         <MessageComponent.Avatar
                           className="mt-[.65rem] ml-[.30rem]"
-                          src={user.image ?? undefined}
+                          src={user.id ? `/api/avatar/${user.id}` :  undefined}
                           fallback={user.username ? user.username[0] : "U"}
                         />
                       )}
