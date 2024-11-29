@@ -20,7 +20,6 @@ interface ChatPageProps {
 export async function generateMetadata({ params }: ChatPageProps): Promise<Metadata> {
   const { id } = await params;
 
-  // Fetch the session using the provided id
   try {
     const session = await getSession(id) as GameSessionPublicResponse;
 

@@ -35,10 +35,11 @@ export async function getGames(skip: number = 0, include: number = 0): Promise<G
   }
   try {
     const response = await fetch(
-      `${process.env.FRONTEND_HOST || "https://backend-620119407459.us-central1.run.app"}/game?s=${skip}`,
+      `${API_CONFIG.ENDPOINTS.GAME}?s=${skip}`,
       {
         headers: {
           "Content-Type": "application/json",
+          "Accept": "application/json",
         },
         next: {
           revalidate: CACHE_DURATION, // Next.js 13+ cache configuration

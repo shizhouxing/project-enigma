@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   authors: [{ name: "RedArena Team" }, { name: "LLMSYS", url: "https://lmsys.org/" }, { name : "Luca Vivona" }] ,
   openGraph: {
     type: "website",
-    url: "",
+    url : "https://project-enigma-620119407459.us-central1.run.app",
     title: "RedArena Login",
     description:
       "A community-driven redteaming platform",
