@@ -16,7 +16,7 @@ const nextConfig: NextConfig = {
     ],
   },
   rewrites: async () => {
-    const backendHost = process.env.NEXT_PUBLIC_BACKEND_HOST || 'https://backend-620119407459.us-central1.run.app/'; // Fallback to localhost if not set
+    const backendHost = process.env.NEXT_PUBLIC_BACKEND_HOST || 'http://127.0.0.1:8000'; // Fallback to localhost if not set
     return [
       {
         source: "/api/:path*",
