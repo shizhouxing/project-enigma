@@ -140,6 +140,7 @@ class User(BaseModelWithUtils):
     image: Optional[Union[str, HttpUrl]] = None
     provider: Optional[Literal['google']] = None
     pinned: List[Union[ObjectId, str]] = Field(default_factory=list)
+    games_played : Optional[int] = 0
 
     def update_last_login(self) -> None:
         """Update last login timestamp"""
@@ -167,6 +168,7 @@ class UserPublic(BaseModelWithUtils):
     image: Optional[Union[str, HttpUrl]] = None
     history: List[Any] = Field(default_factory=list)
     pinned: List[Any] = Field(default_factory=list)
+    stared : Optional[List[Any]] = Field(default_factory=list)
 
     @classmethod
     def from_user(cls, user: User) -> "UserPublic":
@@ -177,6 +179,21 @@ class UserPublic(BaseModelWithUtils):
             image=user.image,
             pinned=user.pinned
         )
+
+class UserSessionStatsItem(BaseModelWithUtils):
+    completed_time : datetime
+    outcome : Literal["win", "loss", "forfeit"]
+    provider : str
+
+class UserStats(BaseModelWithUtils):
+    """Public user information model"""
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+    )
+    games_played : int
+    sessions : List[UserSessionStatsItem]
+
+
 
 class JudgeFunctionMetadata(BaseModelWithUtils):
     doc: Optional[str] = None
@@ -254,6 +271,7 @@ class Game(BaseModelWithUtils):
     image: Optional[HttpUrl] = None  # Removed Union with str for clearer validation
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    session_description : Optional[str] = None
     stars: List[str] = Field(default_factory=list)
     metadata: GameMetadata = Field(default_factory=GameMetadata)
     def add_star(self, user_id: str) -> None:
@@ -359,6 +377,7 @@ class GameSession(BaseModelWithUtils):
     description: Optional[str] = None
     history: List[Dict[str, Any]] = Field(default_factory=list)
     completed: bool = False
+    visible : bool = False
     create_time: Optional[datetime] = None 
     completed_time: Optional[datetime] = None
     outcome: Optional[str] = None
@@ -382,6 +401,16 @@ class GameSession(BaseModelWithUtils):
     def share_session(self, sharing_type: str = "public") -> None:
         """Share the session with specified visibility"""
         self.shared = sharing_type
+    
+    def create_session(self) -> Dict[str, Any]:
+        new_session = self.model_dump()
+        
+        # delete unused params
+        del new_session["user"]
+        del new_session["judge"]
+        del new_session["model"]
+
+        return new_session
 
 class GameSessionCreateResponse(BaseModelWithUtils):
     """Response model for creating a new game session"""
@@ -446,6 +475,7 @@ class GameSessionPublic(BaseModelWithUtils):
     metadata: GameSessionMetadata = Field(default_factory=GameSessionMetadata)
     completed: bool = False
     shared: Optional[str] = None
+    visible : bool = True
 
     def mark_completed(self, outcome: Optional[str] = None) -> None:
         """
@@ -460,7 +490,10 @@ class GameSessionPublic(BaseModelWithUtils):
         if outcome:
             self.outcome = outcome
         
-        self.metadata.update_duration(self.create_time)
+    
+    def mark_hidden(self):
+        if self.completed:
+            self.visible = False
 
     def add_message(
         self, 

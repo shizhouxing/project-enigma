@@ -19,7 +19,7 @@ import requests
 import base64
 from urllib.parse import quote
 from datetime import datetime, timedelta, UTC
-from typing import Annotated, Literal, Optional
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.responses import RedirectResponse, HTMLResponse
@@ -82,6 +82,7 @@ async def login_access_token(
                 expires_delta=access_token_expires
             )
         
+            # NOTE: Move this to crud.py
             update_result = await db.users.update_one(
                     {"_id": user.id},
                     {"$set": {"access_token": access_token, "last_login" : datetime.now(UTC) }}
@@ -98,7 +99,6 @@ async def login_access_token(
         )
 
     except Exception as e:
-        print(e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error while updating token"
@@ -123,10 +123,11 @@ async def test_token(user: CurrentUser) -> Message:
     
     return Message(
         status=status.HTTP_200_OK,
-        message="token is valid",
-        data=UserPublic(
+        message="Valid session token",
+        data=dict(
             username=user.username,
-            ).model_dump()
+            image=f"/avatar/{user.id}"
+        )
     )
 @router.get("/auth/{provider}", tags=["Auth"])
 def oauth_provider_sign_in(
@@ -298,4 +299,3 @@ async def callback(
                 secure=settings.ENVIRONMENT == "production",  # Set secure flag based on environment
             )
     return response
-    

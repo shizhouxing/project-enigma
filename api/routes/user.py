@@ -21,13 +21,14 @@ import io
 import httpx
 import base64
 
+
 from bson import ObjectId
 from bson.errors import InvalidId
 
 from pydantic import ValidationError
 
 from fastapi import APIRouter, Query, HTTPException, status
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse
 
 from api import crud
 from api.deps import (
@@ -36,7 +37,7 @@ from api.deps import (
     clear_user_token,
 )
 from api.models import (
-    User, 
+    UserStats,
     UserRegister, 
     UserPublic,
     Message
@@ -230,8 +231,7 @@ async def read_user_by_id(
         HTTPException (422): If the retrieved user data fails validation
     """
     try:
-
-        
+        # NOTE: Move this to crud function
         # Combined query using aggregation
         pipeline = [
             {"$match": {"_id": user.id}},
@@ -246,11 +246,11 @@ async def read_user_by_id(
                     "$match": {
                     "$expr": { "$eq": ["$user_id", "$$user_id"] },
                     "completed": True,
+                    "visible" : True,
                     "$and": [
                         { "history": { "$exists": True } }, 
                         { "history": { "$not": { "$size": 0 } } }
-                        ]
-                    # "outcome": { "$ne": "forfeit" }
+                        ],
                     }
                 },
                 {
@@ -296,7 +296,6 @@ async def read_user_by_id(
             {"$project": {
                 "id": {"$toString": "$_id"},
                 "username": 1,
-                "image": 1,
                 "history": 1,
                 "pinned" : {
                     "id" : 1,
@@ -320,7 +319,6 @@ async def read_user_by_id(
         return UserPublic(
             id=user_dict.get("id", None),
             username=user_dict.get("username", None),
-            image=user_dict.get("image", None),
             history=user_dict.get("history", []) ,
             pinned=user_dict.get("pinned", [])
         )
@@ -424,8 +422,23 @@ async def unpin_game(
         raise HTTPException(status_code=400, detail="Invalid game ID format")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
 
+
+@router.get('/stats')
+async def user_stats(
+        current_user : CurrentUser,
+        db : Database
+) -> UserStats:
+    try:
+        stats = await crud.user_stats(db=db, user_id=current_user.id)
+        return stats
+    except:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Something went wrong on the server"
+        )
+    
+    
 
 @router.get('/avatar/{id}')
 async def get_avatar(db: Database, id: str):
