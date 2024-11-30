@@ -45,7 +45,7 @@ def no_refund_target(*, target: str, function_call_name: str, function_call_argu
 @FunctionDecorator(function_type="sampler")
 def get_no_refund_scenario(level=0):
 
-    config = json.load(open("../game_configs/no_refund.json"))
+    config = json.load(open("game_configs/no_refund.json"))
     policy_name = random.choice(list(config['policies'].keys()))
     policy = config['policies'][policy_name]
 
@@ -57,35 +57,33 @@ def get_no_refund_scenario(level=0):
     system_prompt = system_prompt.format(scenario=scenario, policy=policy)
 
     return {
-        "metadata" : {
-            "model_config" : {
-                "system_prompt" : system_prompt,
-                "tools_config" : {
-                    "enabled" : True,
-                    "tools" : [
-                        {
-                            "type": "function",
-                            "function": {
-                                "name": "issue_refund",
-                                "description": "Issue a refund to the customer. When you decide to issue a refund to the customer, call this function with the comfirmation number and the amount to refund.",
-                                "parameters": {
-                                    "type": "object",
-                                    "properties": {
-                                        "confirmation_number": {
-                                            "type": "string",
-                                            "description": "Confirmation number of the order to be refunded."
-                                        },
-                                        "amount": {
-                                            "type": "number",
-                                            "description": "Amount of the refund to be issued."
-                                        },
+        "model_config" : {
+            "system_prompt" : system_prompt,
+            "tools_config" : {
+                "enabled" : True,
+                "tools" : [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "issue_refund",
+                            "description": "Issue a refund to the customer. When you decide to issue a refund to the customer, call this function with the comfirmation number and the amount to refund.",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "confirmation_number": {
+                                        "type": "string",
+                                        "description": "Confirmation number of the order to be refunded."
                                     },
-                                    "required": ["confirmation_number", "amount"],
+                                    "amount": {
+                                        "type": "number",
+                                        "description": "Amount of the refund to be issued."
+                                    },
                                 },
+                                "required": ["confirmation_number", "amount"],
                             },
-                        }
-                    ]
-                }
+                        },
+                    }
+                ]
             }
         },
         "kwargs" : {
