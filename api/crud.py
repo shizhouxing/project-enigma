@@ -198,7 +198,7 @@ async def authenticate(*, db : Database, username : str, password : str) -> Opti
     return user
 
 async def user_stats(*, db : Database, user_id : str | ObjectId):
-
+    """ user states such as games played list of sessions """
     try :
         
         if isinstance(user_id, str):
@@ -207,7 +207,7 @@ async def user_stats(*, db : Database, user_id : str | ObjectId):
         user = await db.users.aggregate([
             {
                 "$match": {
-                    "_id": user_id  # Match the specific user by their ObjectId
+                    "_id": user_id 
                 }
             },
             {
@@ -224,13 +224,13 @@ async def user_stats(*, db : Database, user_id : str | ObjectId):
 
         pipeline = [
             {
-                "$match": {  # Match sessions belonging to the user and are completed
+                "$match": { 
                     "user_id": user_id,
                     "completed": True
                 }
             },
             {
-                "$lookup": {  # Join with the `models` collection
+                "$lookup": {
                     "from": "models",
                     "localField": "agent_id",
                     "foreignField": "_id",
@@ -238,7 +238,7 @@ async def user_stats(*, db : Database, user_id : str | ObjectId):
                 }
             },
                         {
-                "$lookup": {  # Join with the `models` collection
+                "$lookup": {
                     "from": "users",
                     "localField": "user_id",
                     "foreignField": "_id",
@@ -246,18 +246,18 @@ async def user_stats(*, db : Database, user_id : str | ObjectId):
                 }
             },
             {
-                "$unwind": {  # Unwind the `model` array
+                "$unwind": {
                     "path": "$model",
                     "preserveNullAndEmptyArrays": True
                 }
             },{
-                "$unwind": {  # Unwind the `model` array
+                "$unwind": {
                     "path": "$user",
                     "preserveNullAndEmptyArrays": True
                 }
             },
             {
-                "$project": {  # Project the desired fields
+                "$project": {
                     "_id": 0,
                     "completed_time": 1,
                     "outcome": 1,
@@ -272,8 +272,8 @@ async def user_stats(*, db : Database, user_id : str | ObjectId):
         games_played = max(0, len(sessions))
         if user["games_played"] < 0:
             await db.users.update_one(
-                {"_id": user_id},  # Match the game by its _id
-                {"$set": {"games_played": games_played}}  # set games_played to session max
+                {"_id": user_id},
+                {"$set": {"games_played": games_played}}
             )
         
         result = dict(games_played=games_played, sessions=sessions)

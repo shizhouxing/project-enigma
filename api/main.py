@@ -13,7 +13,7 @@ from api.routes import (login,\
                         game_session,\
                         health)
 from api.backend_ping_test import db_ping_server
-from api.cron import compute_leaderboard, check_model_tokens_usage, history_garbage_collection
+from api.cron import compute_leaderboard, history_garbage_collection
 from api.deps import close_database
 from api.utils import logger
 
