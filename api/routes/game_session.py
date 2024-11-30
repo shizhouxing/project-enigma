@@ -255,11 +255,12 @@ def model_generate_generator(
 
 
     functions_called = stream.get_function_call()
+    logger.info(f"Functions called: {functions_called}")
     if functions_called and any(
         validator(
             **{"source": calmative_token} |
-            metadata.get("kwargs", {}) |
-            {"function_call_name": func.name, "function_call_arguments": func.argument}
+            metadata.kwargs |
+            {"function_call_name": func["name"], "function_call_arguments": func["arguments"]}
         ) for func in functions_called
     ):
         session.outcome = "win"
