@@ -230,10 +230,15 @@ def model_generate_generator(
     calmative_token = ""
 
     tools_config = metadata.models_config.get("tools_config", {})
+    system_prompt = metadata.models_config.get("system_prompt", "")
+    history = session.history
+    if system_prompt:
+        history = [{"role": "system", "content": system_prompt}] + history
+
     if tool_enabled := tools_config.get("enabled", False):
-        stream = client.generate(session.history, model, tools=tools_config.get("tools", []))
+        stream = client.generate(history, model, tools=tools_config.get("tools", []))
     else:
-        stream = client.generate(session.history, model)
+        stream = client.generate(history, model)
 
     for token in stream.iter_tokens():
         calmative_token += token
