@@ -1,14 +1,16 @@
 import re
 import json
-from typing import Any, List, Dict, Optional
+from typing import Any, List, Dict
 from bson import ObjectId
 from fastapi import APIRouter, \
                     HTTPException,\
                     status,\
                     BackgroundTasks
 from fastapi.responses import StreamingResponse
+from pymongo.results import UpdateResult
 
 from datetime import datetime, UTC
+
 from api import crud
 from api.deps import Database, CurrentUser
 from api.models import (Request,
@@ -50,17 +52,24 @@ async def create_session(
                 detail="No contexts found for the specified game"
             )
 
-        model_id = await crud.get_random_model_id(db=db)
+        model_id = await crud.get_random_model_id(db=db, 
+                                                  game=game)
+        
+        judge = await crud.get_judge_from_id(db=db, 
+                                             id=game.judge_id)
+        
         logger.info(f"sample model id: {model_id}")
         new_session = await crud.create_game_session(
             db=db,
             user_id=user.id,
-            game_id=game_id,
-            model_id=model_id, 
+            game=game,
+            judge=judge,
+            model_id=model_id
         )
     except Exception as e:
         logger.error(e)
-        raise HTTPException( status_code=status.HTTP_400_BAD_REQUEST, detail="Something went wrong")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
+                            detail="Something went wrong")
         
 
     return GameSessionCreateResponse.from_game(new_session)
@@ -81,33 +90,32 @@ async def get_chat_session(
 
     return session
 
-
-# NOTE: Comment or Delete when in production
 @router.delete("/{id}/chat_conversation", tags=["Game Session"])
 async def deleted_session(
     id : str,
     user: CurrentUser, 
     db: Database
 ) -> Message:
-    """NOTE: this is just for testing"""
+    """"""
 
     try:
-        response = await db.sessions.delete_one({
+
+        response : UpdateResult = await db.sessions.update_one({
             "_id" : ObjectId(id),
             "user_id" : user.id, 
+        }, {
+            "$set": { "visible": False }
         })
 
-        if response.deleted_count == 0:
+        if response.modified_count == 0:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Session {id} not found"
+                status_code=status.HTTP_204_NO_CONTENT,
+                detail="Nothing was modified"
             )
-        
+
     except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail="Session was not deleted for what ever reason"
-        )
+        raise e
+
     return Message(
         status=status.HTTP_200_OK,
         message=f"{id} successfully deleted"
@@ -133,11 +141,13 @@ async def title_completion(
     Returns:
         dict: Updated session information
     """
+
+    
     try:
+        # Either completed or not we can change the title
         session = await crud.get_session(
             session_id=id,
             user_id=current_user.id,
-            completed=None,
             db=db
         )
         
@@ -148,7 +158,7 @@ async def title_completion(
                 detail="You do not have permission to access this session"
             )
 
-        if content.generate:
+        if content.generate and session.title is None:
             # Create minimal context for title generation with modified format
             title_prompt = [
                 {
@@ -196,11 +206,7 @@ async def title_completion(
         )
         
     except Exception as e:
-        print(e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error generating title"
-        )
+        raise e
 
 def model_generate_generator(
         history : List[ClientMessage],
@@ -336,6 +342,7 @@ async def forfeit(
 
     session = await crud.get_session(session_id=id, 
                                      user_id=ObjectId(user_id), 
+                                     completed=False,
                                      db=db)
     
     if user_id != str(session.user_id) != str(current_user.id) \
@@ -382,6 +389,7 @@ async def end(
 
     session = await crud.get_session(session_id=id,
                                      user_id=ObjectId(user_id),
+                                     completed=False,
                                      db=db)
     
 
@@ -487,8 +495,8 @@ async def get_shared_conversation(
         duration=duration,
         last_message=session.completed_time,
         history=session.history,
-        model=session.model
-        
+        model=session.model,
+        description=session.description
     )
 
     return response_data
@@ -554,7 +562,7 @@ async def get_session_history(
     id: str,
     user_id: str,
     db : Database
-) -> Dict[str, Any]:
+) -> GameReadOnly:
     """
     Retrieves the chat history of session_id of current user
 
@@ -586,7 +594,8 @@ async def get_session_history(
         outcome=session.outcome,
         duration=duration,
         last_message=session.completed_time,
-        history=session.history
+        history=session.history,
+        description=session.description
     )
 
     return response_data
