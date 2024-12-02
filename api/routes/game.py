@@ -1,4 +1,6 @@
 from __future__ import annotations
+import json
+import asyncio
 from typing import List, Any, Optional, Dict
 
 from fastapi import APIRouter, HTTPException
@@ -33,6 +35,7 @@ async def get_all_games(
                           image=game.image
                     ).to_dict()
                 )
+                
         return response
     except HTTPException as e:
         raise e
@@ -48,19 +51,17 @@ async def get_all_games_stream(
     Accessible via both /game/ and /game
     """
 
-    @handleStreamResponse(include_end=True)
     async def stream_games():
         async for game in get_games(db=db, skip=s, limit=l):
-            yield StreamResponse(
-                    event="message",
-                    id="game",
-                    data=Game(
+            yield "{payload}".format(
+                    payload=json.dumps(dict(event="message", content=Game(
                         id=str(game.id),
                         title=game.title,
-                        image=game.image
-                        ).model_dump_json(exclude_none=True)
+                        image=str(game.image)
+                        ).model_dump(mode="json", exclude_none=True))
                     )
-        
+                )
+            await asyncio.sleep(2.0)
             
     return EventSourceResponse(stream_games())
 
