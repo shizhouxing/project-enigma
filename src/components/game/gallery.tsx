@@ -7,19 +7,27 @@ import Link from "next/link";
 import { Input } from "../ui/input";
 import { Search } from "lucide-react";
 import Loading from "../loading";
+import Image from "next/image";
 
 function GameCardComponent({ game }: { game: Game }) {
   return (
-    <Link href={`/games/${game.id}`} key={game.id}>
+    <Link href={`/games/${game.id}`} key={game.id} prefetch={true}>
       <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 hover:scale-[1.02]">
         <div className="relative h-48 w-full flex items-center justify-center">
-          <img
-            src={game.image}
-            alt={game.title}
-            className="object-contain opacity-80"
-          />
-          <CardTitle className="text-2xl font-bold text-white absolute">
-            {game.title}
+          {game.image && (
+            <div className="absolute inset-0">
+              <Image
+                src={game.image}
+                alt={game.title}
+                className="object-contain brightness-50"
+                fill={true}
+              />
+              {/* Dark overlay */}
+              <div className="absolute inset-0 bg-black opacity-50"></div>
+            </div>
+          )}
+          <CardTitle className="text-2xl font-bold text-white absolute z-10">
+            <span className="shadow-2xl">{game.title}</span>
           </CardTitle>
         </div>
       </Card>
@@ -41,9 +49,10 @@ const GameCardGallery = ({ games }: { games: Game[] }) => {
 
   if (!validGames || validGames.length === 0) {
     return (
-      <Loading 
+      <Loading
         fullScreen
-        className="flex items-center justify-center w-full h-screen text-center relative"/>
+        className="flex items-center justify-center w-full h-screen text-center relative"
+      />
     );
   }
 

@@ -25,7 +25,7 @@ export function GameSettings({ game }: GameSettingsProps) {
             </p>
           </div>
           <div className="space-y-1">
-            <p className="text-sm font-medium">Max Tokens</p>
+            <p className="text-sm font-medium">Output Tokens/Prompt</p>
             <p className="text-sm text-gray-600">
               {game.metadata.model_config.max_tokens}
             </p>
@@ -40,7 +40,15 @@ export function GameSettings({ game }: GameSettingsProps) {
             <p className="text-sm font-medium">Time Limit</p>
             <p className="text-sm text-gray-600">
               {game.metadata.game_rules.timed
-                ? `${game.metadata.game_rules.time_limit / 1000}s`
+                ? `${game.metadata.game_rules.time_limit / 60}s`
+                : "No limit"}
+            </p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-sm font-medium">Timed</p>
+            <p className="text-sm text-gray-600">
+              {game.metadata.game_rules.timed
+                ? `${game.metadata.game_rules.timed}`
                 : "No limit"}
             </p>
           </div>

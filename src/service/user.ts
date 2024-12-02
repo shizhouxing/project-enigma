@@ -1,8 +1,19 @@
 "use server";
 import { cookies } from "next/headers";
 import { usernameSchema } from "@/lib/definition";
-import { handleResponse } from "./utils";
+import { HandleErrorResponse, handleResponse } from "./utils";
 import { API_CONFIG } from "@/lib/config/api";
+
+export interface GameStats {
+  games_played: number;
+  sessions: Array<{
+    completed_time: string;
+    outcome: "win" | "loss" | "forfeit";
+    provider: string;
+  }>;
+}
+
+export type GameResponse = GameStats & HandleErrorResponse;
 
 export async function createUsername(username: string): Promise<{
   ok: boolean;
@@ -261,5 +272,43 @@ export async function logout(): Promise<{ ok: boolean; error?: string }> {
     // Catch-all for other types of errors
     console.error("Unexpected error:", error);
     return { ok: false, error: "An unexpected error occurred" };
+  }
+}
+
+export async function userStats() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("sessionKey")?.value;
+
+  if (!token) {
+    return {
+      ok: false,
+      status: 401,
+      message: "Authentication required",
+    };
+  }
+
+  try {
+    const response = await fetch(`${process.env.FRONTEND_HOST}/api/stats`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      next : {
+        revalidate : 60
+      }
+    });
+
+    const res: GameStats = await handleResponse(response);
+    return {
+      ok: true,
+      ...res,
+    };
+  } catch (error: any) {
+    return {
+      ok: false,
+      status: error.status || 500,
+      message: error.message || "Failed to unpin game",
+    };
   }
 }

@@ -56,7 +56,6 @@ import { useUser } from "@/context/user";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import Loading from "./loading";
-import { StarFilledIcon } from "@radix-ui/react-icons";
 
 export function AppSidebar() {
   const router = useRouter();
@@ -108,11 +107,7 @@ export function AppSidebar() {
         </div>
         <SidebarGroup>
           <SidebarGroupContent className=" space-y-1">
-            <div
-              onClick={() => {
-                router.push("/");
-              }}
-            >
+            <Link href={"/"} prefetch={true}>
               <SidebarMenuItem
                 key={"games"}
                 className={cn(
@@ -126,67 +121,67 @@ export function AppSidebar() {
                   </div>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-            </div>
+            </Link>
             {user.pinned.map(
               (game: { id: string; image: string; title: string }) => {
                 return (
-                  <SidebarMenuItem
+                  <Link
                     key={`games-${game.id}`}
-                    className={cn(
-                      "flex items-center px-0 py-1 cursor-pointer hover:bg-accent rounded-lg transition-colors"
-                    )}
+                    href={`/games/${game.id}`}
+                    prefetch={true}
+                    id={game.id}
                   >
-                    <SidebarMenuButton
-                      onClick={() => {
-                        router.push(`/games/${game.id}`);
-                      }}
+                    <SidebarMenuItem
+                      className={cn(
+                        "flex items-center px-0 py-1 cursor-pointer hover:bg-accent rounded-lg transition-colors"
+                      )}
                     >
-                      <div className="flex items-center space-x-0">
-                        <Avatar className="w-7 h-7 rounded-3xl">
-                          <AvatarImage src={game.image ?? "vercel.svg"} />
-                          <AvatarFallback>
-                            {game.title.split(" ").length > 1
-                              ? game.title[0].toUpperCase()
-                              : game.title.slice(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="font-medium">{game.title}</span>
+                      <SidebarMenuButton>
+                        <div className="flex items-center space-x-0">
+                          <Avatar className="w-7 h-7 rounded-3xl">
+                            <AvatarImage src={game.image ?? "vercel.svg"} />
+                            <AvatarFallback>
+                              {game.title.split(" ").length > 1
+                                ? game.title[0].toUpperCase()
+                                : game.title.slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="font-medium">{game.title}</span>
+                        </div>
+                      </SidebarMenuButton>
+                      <div className="flex items-center">
+                        <SidebarMenuAction
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Add your edit handler here
+                          }}
+                        ></SidebarMenuAction>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild className="mt-1">
+                            <SidebarMenuAction>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </SidebarMenuAction>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent side="right" align="start">
+                            <DropdownMenuItem
+                              onClick={async () => {
+                                await handleUnpin(game.id);
+                              }}
+                            >
+                              <PinOff />
+                              <span>Unpin</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                              <Link href={`/leaderboard/${game.id}`}>
+                                <ChartColumn />
+                                <span>Leaderboard</span>
+                              </Link>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
-                    </SidebarMenuButton>
-                    <div className="flex items-center">
-                      <SidebarMenuAction
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Add your edit handler here
-                        }}
-                      ></SidebarMenuAction>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild className="mt-1">
-                          <SidebarMenuAction>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </SidebarMenuAction>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent side="right" align="start">
-                          <DropdownMenuItem
-                            onClick={() => {
-                              handleUnpin(game.id);
-                            }}
-                          >
-                            <PinOff />
-                            <span>Unpin</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => {
-                              router.push(`/leaderboard/${game.id}`);
-                            }}
-                          >
-                            <ChartColumn />
-                            <span>Leaderboard</span>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </SidebarMenuItem>
+                    </SidebarMenuItem>
+                  </Link>
                 );
               }
             )}
@@ -197,64 +192,35 @@ export function AppSidebar() {
       <SidebarContent>
         <ScrollArea className=" -mt-3 h-[calc(100vh-10rem)]">
           <SidebarGroup>
-            <SidebarGroupLabel className="font-bold select-none cursor-default">
-              Recents
-            </SidebarGroupLabel>
+            {user.id && (
+              <SidebarGroupLabel className="font-bold select-none cursor-default">
+                Recents
+              </SidebarGroupLabel>
+            )}
 
             <SidebarGroupContent className=" space-y-1">
-              {user.history.map((chat: { _id : string, title : string }) => {
+              {user.history.map((chat: { title: string; _id: string; }) => {
                 return (
-                  <div
+                  <Link
+                    href={`/c/${chat._id}`}
                     key={chat._id}
                     className={cn(
                       "flex items-center gap-2 px-2 py-[0.3rem] cursor-pointer hover:bg-accent rounded-lg transition-colors group",
                       pathname === `/c/${chat._id}` && "bg-zinc-900"
                     )}
-                    onClick={() => {
-                      router.push(`/c/${chat._id}`);
-                    }}
+                    prefetch={true}
                   >
                     <MessagesSquare className="h-[0.9rem] w-[0.9rem] ml-1 text-muted-foreground" />
 
                     <div className="flex-1 min-w-0">
                       <span className="font-medium text-sm truncate block">
-                        {chat.title}
+                        {chat.title ?? "Untitled Chat"}
                       </span>
                     </div>
-
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        asChild
-                      >
-                        <button className="hover:bg-accent rounded">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </button>
-                      </DropdownMenuTrigger>
-
-                      <DropdownMenuContent side="right" align="start">
-                        <DropdownMenuItem
-                          className="cursor-pointer"
-                          onSelect={async () => {
-                            await handleSessionPop(chat._id);
-                          }}
-                        >
-                          <Trash className="mr-2 h-4 w-4" />
-                          <span>Delete</span>
-                        </DropdownMenuItem>
-
-                        <DropdownMenuItem
-                          className="cursor-pointer"
-                          onSelect={() => {}}
-                        >
-                          <Star className="mr-2 h-4 w-4" />
-                          <span>Star</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
+                  </Link>
                 );
               })}
-              {user.history.length >= 10 && (
+              {user.history.length >= 9 && (
                 <Link href={"/recents"} className=" cursor-auto ">
                   <div className="flex ml-2  w-full items-center space-x-2 text-xs hover:underline">
                     View All <MoveRight className="ml-1" width={15} />
@@ -300,7 +266,9 @@ const SidebarDropDownMenu = () => {
             size="icon"
           >
             <Avatar className="w-8 h-8 rounded-3xl">
-              <AvatarImage src={user.id ? `/api/avatar/${user.id}` : "/vercel.svg"} />
+              <AvatarImage
+                src={user.id ? `/api/avatar/${user.id}` : "/vercel.svg"}
+              />
               <AvatarFallback>??</AvatarFallback>
             </Avatar>
             {/* <span className="font-medium">{user.username ?? "Username"}</span> */}
@@ -309,7 +277,7 @@ const SidebarDropDownMenu = () => {
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56">
         <DropdownMenuGroup>
-          <Link href="/account">
+          <Link href="/account" prefetch>
             <DropdownMenuItem tabIndex={0}>
               <span>Account</span>
             </DropdownMenuItem>
@@ -321,26 +289,18 @@ const SidebarDropDownMenu = () => {
             <DropdownMenuPortal>
               <DropdownMenuSubContent>
                 <DropdownMenuItem asChild>
-                  <Link href={"https://lmsys.org/"}>
+                  <Link href={"https://lmsys.org/"} prefetch>
                     <SquareArrowOutUpRight />
                     <span>About LMSYS</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href={process.env.FRONTEND_HOST ?? "/terms_of_service"}>
+                  <Link href={"/terms_of_service"} prefetch>
                     <SquareArrowOutUpRight />
                     <span>Terms of Service</span>
                   </Link>
                 </DropdownMenuItem>
-                {/* <DropdownMenuItem>
-                  <SquareArrowOutUpRight />
-                  <span>Usage Policy</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <SquareArrowOutUpRight />
-                  <span>Privacy Policy</span>
-                </DropdownMenuItem> */}
               </DropdownMenuSubContent>
             </DropdownMenuPortal>
           </DropdownMenuSub>
@@ -360,7 +320,7 @@ export const SideBarCloseButton = () => {
 
   if (isMobile) {
     return (
-      <nav className=" absolute top-0 left-0 right-0 h-14 bg-background/80 backdrop-blur-sm border-b z-10 flex items-center px-4">
+      <nav className=" absolute top-0 left-0 right-0 h-14 bg-background/80 backdrop-blur-sm z-10 flex items-center px-4">
         <Button
           variant="ghost"
           size="icon"

@@ -4,8 +4,7 @@ import { useUser } from "@/context/user";
 import { useNotification } from "../toast";
 import {
   createTitle,
-  endGame,
-  forfeitGame,
+  concludeSessionGame,
   GameSessionPublicResponse,
 } from "@/service/session";
 import { Message as MessageComponent } from "./message";
@@ -202,7 +201,11 @@ export const ChatComponent = ({
   authorization,
 }: ChatComponentProps) => {
   const router = useRouter();
-  const { state: user, isLoading: isUserLoading } = useUser();
+  const {
+    state: user,
+    isLoading: isUserLoading,
+    handleSessionPush,
+  } = useUser();
   // State
   const [showTargetModal, setShowTargetModal] = useState(!session.completed);
   const [hasText, setHasText] = useState(false);
@@ -217,7 +220,7 @@ export const ChatComponent = ({
   // Hook
   const { isMobile } = useSidebar();
   const notification = useNotification();
-  const { seconds, isComplete, start, pause, formatTime } = useTimer(30 * 60);
+  const { seconds, isComplete, start, pause, formatTime } = useTimer(10 * 60);
 
   const {
     messages,
@@ -259,14 +262,21 @@ export const ChatComponent = ({
         const decoder = new TextDecoder();
         let buffer = "";
 
+        // indicate to the user the session is running
+        setMessages((prevMessages: any) => {
+          return [...prevMessages, { role: "assistant", content: "" }];
+        });
+
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
           // Decode and append the chunk to the buffer
           buffer += decoder.decode(value, { stream: true });
+          console.log(buffer);
           const lines = buffer.split("\n");
           let content = "";
+
           // Process all complete lines
           for (let i = 0; i < lines.length - 1; i++) {
             const line = lines[i].trim();
@@ -277,8 +287,9 @@ export const ChatComponent = ({
 
               switch (chunk.event) {
                 case "message":
+                  content = content + chunk.content;
                   handleNewMessage(chunk.content);
-                  content = content + chunk.content
+
                   break;
 
                 case "error":
@@ -288,11 +299,9 @@ export const ChatComponent = ({
                 case "end":
                   if (chunk.outcome === "win") {
                     pause();
-                    const msgs = messages.length === 0 ? ["", content] : messages
-                    await handleSessionEnd(msgs, chunk.outcome);
-
-                    // 
-
+                    const message =
+                      messages.length === 0 ? [ { content : "<empty>" }, { content }] : messages;
+                    await handleSessionEnd(message, "win");
                   }
                   break;
 
@@ -311,8 +320,7 @@ export const ChatComponent = ({
         // Process any remaining buffer content
         processRemainingBuffer(buffer);
       } catch (error) {
-        notification.showError("Error processing stream");
-        console.error(error);
+        console.warn(error);
       } finally {
         if (reader) reader.releaseLock();
       }
@@ -342,45 +350,63 @@ export const ChatComponent = ({
     });
   };
 
-  // Helper to handle session end
-  const handleSessionEnd = async (messages: any, outcome: any) => {
-    if (session.id && user.id) {
-      if (messages.length >= 2) {
-        const messageContent = `Message:${messages
-          .slice(0, 2)
-          .map((item: any) => item.content)
-          .join("\n\nMessage:")}`;
+  const handleSessionEnd = async (messages: Message[] | { content : string }[], outcome: string) => {
+    if (!session.id || !user.id) {
+      notification.showError("Authorization Error Occurred");
+      router.push("/");
+      return;
+    }
+    console.log(messages, outcome)
 
-        try {
-          const response = await createTitle(
-            session.id,
-            user.id,
-            messageContent
-          );
-          if (!response.ok) {
-            throw new Error(
-              `Failed to create session title: ${response.message}`
-            );
-          }
-        } catch (error) {
-          notification.showError("Failed to create session title");
-          console.error(error);
-          return;
-        }
-      } else if (messages.length <= 1) {
-        notification.showWarning("No Content Within Session");
-      }
+    try {
 
-      if (outcome === "loss") {
-        const endResponse = await endGame(session.id, user.id);
-
+      // Handle game outcome
+      if (outcome === "loss" && session.outcome == null) {
+        const endResponse = await concludeSessionGame(
+          session.id,
+          user.id,
+          outcome,
+          messages as Message[]
+        );
         if (!endResponse.ok) {
           throw new Error(`Failed to process game end: ${endResponse.message}`);
         }
-        
       }
 
+      let title = "";
+      if (messages.length >= 2) {
+        // Construct message content for title
+        const response = await createTitle(session.id, user.id, true);
+        if (!response.ok) {
+          throw new Error(
+            `Failed to create session title: ${response.message}`
+          );
+        }
+
+        // title = response.data.title as string;
+        title = response.data;
+      } else {
+        // Handle empty or single message case
+        const response = await createTitle(
+          session.id,
+          user.id,
+          false
+        );
+        if (!response.ok) {
+          throw new Error(
+            `Failed to create empty session title: ${response.message}`
+          );
+        }
+        notification.showWarning("No content within session");
+        title = response.data ?? "Untitled Game"
+      }
+
+      // push the page
+      if (messages.length > 1)
+        handleSessionPush({ title, _id: session.id });
       router.refresh();
+    } catch (error) {
+      notification.showError(`Error: ${(error as Error).message}`);
     }
   };
 
@@ -398,28 +424,21 @@ export const ChatComponent = ({
     }
   };
 
+
+  useEffect(() => {
+    if(!session.ok){
+      router.push("/")
+    }
+  }, [])
+
+  // show model targe if the session at the start of the game
   useEffect(() => {
     // Check if session.description is available and not empty
     if (!session.completed && session.description) {
       // Show the target modal
       setShowTargetModal(true);
     }
-  }, [session.description]);
-
-  useEffect(() => {
-    // This effect runs when the component mounts
-    // console.log(session);
-    if (!session.ok) {
-      router.push("/");
-    }
-    return () => {
-      // This cleanup function runs when the component unmounts
-      if (!session.completed && outcome === null) {
-        window.history.replaceState(null, "", window.location.pathname);
-        // You can add your session cleanup logic here
-      }
-    };
-  }, [session, outcome]); // Dependency array ensures that it wat
+  }, [session.description, setShowTargetModal]);
 
   // On message stream scroll to the bottom
   useEffect(() => {
@@ -427,13 +446,6 @@ export const ChatComponent = ({
       scrollAreaRef.current.scrollIntoView(false);
     }
   }, [messages]);
-
-  useEffect(() => {
-    if (outcome !== null && !session.completed) {
-      pause(); // Pause timer to indicate the end of the game
-      handleSessionEnd(messages, outcome); // Call the async handler
-    }
-  }, [outcome, messages, session.id, user.id]);
 
   // handle input
   const handleInput = (e: ChangeEvent<HTMLTextAreaElement>) => {
@@ -468,12 +480,24 @@ export const ChatComponent = ({
     }
   };
 
+  // on
+  useEffect(() => {
+    if (outcome === "loss" && !session.completed) {
+      pause(); // Pause timer to indicate the end of the game
+      handleSessionEnd(messages, "loss")
+    }
+  }, [outcome, session.id, user.id]);
+
+  // Loss Case 1: where timer runs out
   useEffect(() => {
     if (isComplete && outcome === null) {
       // Use functional update to ensure state is set correctly
-      setOutcome((prevOutcome) => prevOutcome ?? "loss");
+      // set the outcome
+      pause(); // pause timer
+      stop();
+      setOutcome("loss");
     }
-  }, [isComplete, outcome]);
+  }, [isComplete, outcome, messages]);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -482,6 +506,7 @@ export const ChatComponent = ({
     }
   }, [session, textareaRef]);
 
+  // NOTE: uncomment when fix loss
   // Replace your existing useEffect forfeit logic with this:
   useEffect(() => {
     // State to track the forfeit status
@@ -491,91 +516,41 @@ export const ChatComponent = ({
     };
 
     // Function to handle forfeiting the game
-    const handleForfeit = async () => {
-      if (
-        forfeitState.shouldForfeit &&
-        !forfeitState.isForfeitInProgress &&
-        !session.completed &&
-        outcome === null &&
-        session.id &&
-        user.id
-      ) {
-        forfeitState.isForfeitInProgress = true; // Prevent multiple forfeit attempts
-
-        try {
-          const result = await forfeitGame(session.id, user.id);
-
-          if (!result.ok || result.status === 204) {
-            router.push("/"); // Redirect if forfeiting failed
-          } else {
-            router.refresh(); // Refresh the page if forfeiting succeeded
-          }
-        } catch (error) {
-          console.error("Forfeit failed:", error);
-          router.push("/");
-        } finally {
-          forfeitState.isForfeitInProgress = false; // Reset forfeit progress flag
-        }
-      }
-    };
-
-    // Listener for visibility changes (e.g., tab switch, minimize)
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") {
-        forfeitState.shouldForfeit = true; // Mark forfeit as required
-        handleForfeit(); // Attempt to forfeit immediately
-      }
-    };
 
     // Listener for the `beforeunload` event (warn user before leaving)
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (!session.completed && outcome === null) {
+      if (!session.completed && outcome === null && !isComplete) {
+        console.log("user leaving");
         forfeitState.shouldForfeit = true; // Mark forfeit as required
         event.returnValue = ""; // Trigger browser's default confirmation dialog
       }
     };
 
     // Listener for the `unload` event (ensure API call on page exit)
-    const handleUnload = async () => {
-      console.warn("Unloading Function Call");
-      if (
-        forfeitState.shouldForfeit &&
-        !forfeitState.isForfeitInProgress &&
-        !session.completed &&
-        outcome === null &&
-        session.id &&
-        user.id
-      ) {
-        // Make a final attempt to forfeit the game
-        try {
-          const result = await forfeitGame(session.id, user.id);
-
-          if (!result.ok || result.status === 204) {
-            console.warn("Forfeit failed during unload");
-          }
-        } catch (error) {
-          console.error("Forfeit error during unload:", error);
-        }
+    const handleUnload = async (event: any) => {
+      if (session.id && user.id) {
+        // await concludeSessionGame(session.id, user.id, "forfeit");
+        console.log("finished");
       }
     };
 
     // Add event listeners
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    // document.addEventListener("visibilitychange", handleVisibilityChange);
 
-    if (!session.completed) {
+    if (!session.completed && !isComplete) {
       window.addEventListener("beforeunload", handleBeforeUnload);
       window.addEventListener("unload", handleUnload);
     }
 
     // Cleanup event listeners on component unmount
     return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      if (!session.completed) {
+      // document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (isComplete) {
         window.removeEventListener("beforeunload", handleBeforeUnload);
         window.removeEventListener("unload", handleUnload);
       }
     };
-  }, [session.id, user.id, outcome, session.completed]);
+  }, [session.id, user.id, outcome, session.completed, isComplete]);
 
   if (isUserLoading || !session.ok) {
     return (
@@ -710,31 +685,40 @@ export const ChatComponent = ({
                   className="flex flex-col space-y-4 px-2 sm:px-4 pb-4 overflow-auto max-w-full"
                   ref={scrollAreaRef}
                 >
-                  {messages.map((message, idx) => (
-                    <MessageComponent
-                      className="relative"
-                      key={`${message.role}-message-${idx}`}
-                      variant={message.role}
-                    >
-                      {message.role === "user" && (
-                        <MessageComponent.Avatar
-                          className="mt-[.65rem] ml-[.30rem]"
-                          src={user.id ? `/api/avatar/${user.id}` :  undefined}
-                          fallback={user.username ? user.username[0] : "U"}
-                        />
-                      )}
-                      <MessageComponent.Content
-                        className={cn(
-                          "break-words", // Ensure text wraps properly
-                          message.role === "user" &&
-                            "items-end font-light pr-2",
-                          message.role === "assistant" && "px-2 font-medium"
-                        )}
+                  {messages.map((message, idx) =>
+                    message.content.length !== 0 ? (
+                      <MessageComponent
+                        className="relative"
+                        key={`${message.role}-message-${idx}`}
+                        variant={message.role}
                       >
-                        {message.content}
-                      </MessageComponent.Content>
-                    </MessageComponent>
-                  ))}
+                        {message.role === "user" && (
+                          <MessageComponent.Avatar
+                            className="mt-[.65rem] ml-[.30rem]"
+                            src={user.id ? `/api/avatar/${user.id}` : undefined}
+                            fallback={user.username ? user.username[0] : "U"}
+                          />
+                        )}
+                        <MessageComponent.Content
+                          className={cn(
+                            "break-words", // Ensure text wraps properly
+                            message.role === "user" &&
+                              "items-end font-light pr-2",
+                            message.role === "assistant" && "px-2 font-medium"
+                          )}
+                        >
+                          {message.content}
+                        </MessageComponent.Content>
+                      </MessageComponent>
+                    ) : (
+                      <div
+                        key={`${message.role}-message-${idx}`}
+                        className=" italic text-lg mt-5"
+                      >
+                        <span className="animate-pulse">Thinking...</span>
+                      </div>
+                    )
+                  )}
                 </div>
               </>
             )}
@@ -799,7 +783,7 @@ export const ChatComponent = ({
                     <Button
                       onClick={() => {
                         notification.showSuccess("Stop stream");
-                        stop();
+                        stop(); // stops stream
                       }}
                       className="rounded-xl transition-colors duration-200 hover:scale-105"
                       variant="ghost"
@@ -863,9 +847,7 @@ export const ChatComponent = ({
             <DialogTitle>Game Objective</DialogTitle>
             <DialogDescription>
               Get ready to challenge your skills! Dive into this session where
-              every move counts. Complete your objective, crack the codes, and
-              leave your mark on the leaderboard. Are you ready to rise to the
-              top?
+              every move counts.
               <br className="mb-4" />
               <span className=" font-bold text-white mt-3">
                 Objective
@@ -879,6 +861,10 @@ export const ChatComponent = ({
                 if (!session.completed) {
                   start(); // the timer
                 }
+                if (textareaRef.current) {
+                  textareaRef.current.focus();
+                }
+
                 setShowTargetModal(false);
               }}
             >

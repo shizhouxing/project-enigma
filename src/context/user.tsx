@@ -25,6 +25,7 @@ type UserAction =
   | { type: "UNPIN_GAME"; payload: { id: string } }
   | { type: "PUSH_SESSION"; payload: { _id: string; title: string } }
   | { type: "POP_SESSION"; payload: { _id: string } }
+  | { type: "POP_SESSIONS"; payload: string[] }
   | { type: "UPDATE_USERNAME"; payload: string | null }
   | { type: "UPDATE_IMAGE"; payload: string | null }
   | { type: "CLEAR_USER" };
@@ -33,12 +34,13 @@ interface UserContextType {
   state: UserState;
   dispatch: React.Dispatch<UserAction>;
   isLoading: boolean;
-  setIsLoading : React.Dispatch<boolean>;
+  setIsLoading: React.Dispatch<boolean>;
   handlePin: (id: string, image: string, title: string) => Promise<void>;
   handleUnpin: (id: string) => Promise<void>;
   logout: () => Promise<void>;
   handleSessionPush: (session: { title: string; _id: string }) => void;
   handleSessionPop: (_id: string) => Promise<void>;
+  handlePopSessions: (id: string[]) => Promise<boolean>;
 }
 
 // Initial State
@@ -55,7 +57,13 @@ function userReducer(state: UserState, action: UserAction): UserState {
     case "SET_USER":
       return { ...action.payload };
     case "PUSH_SESSION":
-      return { ...state, history: [action.payload, ...state.history] };
+      return {
+        ...state,
+        history: [
+          action.payload as { title: string; _id: string },
+          ...state.history,
+        ],
+      };
     case "POP_SESSION":
       return {
         ...state,
@@ -63,6 +71,13 @@ function userReducer(state: UserState, action: UserAction): UserState {
           (item) => item._id !== action.payload._id
         ),
       };
+    case "POP_SESSIONS":
+      return {
+        ...state,
+        history : state.history.filter(
+          (item) => !action.payload.includes(item._id)
+        )
+      }
     case "UPDATE_USERNAME":
       return { ...state, username: action.payload };
     case "UPDATE_IMAGE":
@@ -101,13 +116,16 @@ function UserProvider({ children }: { children: React.ReactNode }) {
             ? {
                 id: response.id ?? null,
                 username: response.username ?? null,
-                history: response.history ?? [],
+                history: (response.history ?? []).map((item: any) => {
+                  return { title: item.title, _id: item._id };
+                }),
                 pinned: response.pinned ?? [],
               }
             : initialState,
         });
       } catch (error) {
         notification.showError("Failed to fetch user data");
+        dispatch({ type: "CLEAR_USER" });
       } finally {
         setIsLoading(false);
       }
@@ -182,14 +200,18 @@ function UserProvider({ children }: { children: React.ReactNode }) {
         `Something went wrong, ${state.username} was not signed out`
       );
     }
-
     setIsLoading(false);
-    router.push("/login");
   };
 
   const handleSessionPop = async (_id: string) => {
+    if (!state.id){
+      notification.showError("Unauthorized to process this.")
+      return;
+    }
+
     try {
-      const result = await deleteSession(_id);
+
+      const result = await deleteSession(state.id, [_id]);
       if (result.ok) {
         dispatch({ type: "POP_SESSION", payload: { _id } });
       } else {
@@ -197,6 +219,29 @@ function UserProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       notification.showError("Could not remove session, Try Again");
+    }
+  };
+
+  const handlePopSessions = async (ids: string[]) => {
+    if (!state.id){
+      notification.showError("Unauthorized to process this.")
+      return false;
+    }
+
+    try {
+      const result = await deleteSession(state.id, ids);
+      console.log(result)
+      if (result.ok) {
+        dispatch({ type: "POP_SESSIONS", payload: ids });
+        notification.showSuccess(result.message ?? "")
+        return true;
+      } else {
+        notification.showError("Could not remove session, Try Again");
+        return false
+      }
+    } catch (error) {
+      notification.showError("Could not remove session, Try Again");
+      return false
     }
   };
 
@@ -208,9 +253,12 @@ function UserProvider({ children }: { children: React.ReactNode }) {
     handlePin,
     handleUnpin,
     logout,
-    handleSessionPush: (session: { title: string; _id: string }) =>
-      dispatch({ type: "PUSH_SESSION", payload: session }),
+    handleSessionPush: (session: { title: string; _id: string }) => {
+      console.log(session, state.history);
+      dispatch({ type: "PUSH_SESSION", payload: session });
+    },
     handleSessionPop,
+    handlePopSessions
   };
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;

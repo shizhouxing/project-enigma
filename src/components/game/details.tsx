@@ -14,10 +14,16 @@ import {
 } from "@/components/ui/dialog";
 import { redirect, useRouter } from "next/navigation";
 import type { Game } from "@/types/game";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../ui/tooltip";
 import { useUser } from "@/context/user";
 import { createChat } from "@/service/session";
 import { useNotification } from "../toast";
+import Link from "next/link";
 
 interface GameDetailsProps {
   game: Game;
@@ -25,30 +31,28 @@ interface GameDetailsProps {
 }
 
 export function GameDetails({ game }: GameDetailsProps) {
-  const { state : user, handlePin, handleUnpin, isLoading } = useUser();
-  const notification = useNotification()
-  const [pinned, setPinned] = useState(user.pinned.filter((e : { id : string }) => e.id == game.id).length != 0);
+  const { state: user, handlePin, handleUnpin, isLoading } = useUser();
+  const notification = useNotification();
+  const [pinned, setPinned] = useState(
+    user.pinned.filter((e: { id: string }) => e.id == game.id).length != 0
+  );
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const router = useRouter();
 
-
   useEffect(() => {
-    setPinned(user.pinned.filter((e : { id : string }) => e.id == game.id).length != 0)
-  }, [user])
-
-  const handleLeaderboardClick = () => {
-    router.push(`/leaderboard/${game.id}`)
-  }
-
+    setPinned(
+      user.pinned.filter((e: { id: string }) => e.id == game.id).length != 0
+    );
+  }, [user]);
 
   const handlePlayNow = async () => {
     const chat = await createChat(game.id);
-    if(!chat.ok){
-      notification.showWarning(chat.error ?? "Could not create new Chat ")
+    if (!chat.ok) {
+      notification.showWarning(chat.error ?? "Could not create new Chat ");
       return;
     }
-    notification.showSuccess("Game session created")
-    router.push(`/c/${chat.session_id}`)
+    notification.showSuccess("Game session created");
+    router.push(`/c/${chat.session_id}`);
   };
 
   const handleLogin = () => {
@@ -57,55 +61,57 @@ export function GameDetails({ game }: GameDetailsProps) {
 
   return (
     <>
-<div className="flex space-x-2">
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            onClick={handlePlayNow}
-            variant="default"
-            className="gap-2 items-center"
-          >
-            Play Game<PlayCircle />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Play Now</TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            onClick={handleLeaderboardClick}
-            size="icon"
-            variant="ghost"
-            className="gap-2 items-center"
-          >
-            <ChartColumn/>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Leaderboard</TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            onClick={async () => { 
-              if (!pinned){
-                await handlePin(game.id, game.image ?? "", game.title)
-              } else {
-                await handleUnpin(game.id)
-              }
-            }}
-            size="icon"
-            variant="ghost"
-            className="gap-2 items-center"
-            disabled={isLoading}
-          >
-            <Pin fill={pinned ? "white" : ""}/>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Pin to sidebar</TooltipContent>
-      </Tooltip>
-      </TooltipProvider>
-    </div>
+      <div className="flex space-x-2">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={handlePlayNow}
+                variant="default"
+                className="gap-2 items-center"
+              >
+                Play Game
+                <PlayCircle />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Play Now</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href={`/leaderboard/${game.id}`} prefetch={true} >
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="gap-2 items-center"
+                >
+                  <ChartColumn />
+                </Button>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>Leaderboard</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={async () => {
+                  if (!pinned) {
+                    await handlePin(game.id, game.image ?? "", game.title);
+                  } else {
+                    await handleUnpin(game.id);
+                  }
+                }}
+                size="icon"
+                variant="ghost"
+                className="gap-2 items-center"
+                disabled={isLoading}
+              >
+                <Pin fill={pinned ? "white" : ""} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Pin to sidebar</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
       <Dialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>

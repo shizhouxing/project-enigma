@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useUser } from "@/context/user";
 import { Avatar, AvatarFallback, AvatarImage } from "@radix-ui/react-avatar";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,6 +22,7 @@ import {
   CartesianGrid,
   XAxis,
 } from "recharts";
+import { GameStats, userStats } from "@/service/user";
 // import { MetricsChart } from "@/components/chart/model";
 
 const WinLossChartData = [
@@ -77,8 +78,26 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 export default function Profile() {
+
   const { state: user, isLoading } = useUser();
+  
+  const [stats, setStats] = useState<null | GameStats>(null);
   const [timeRange, setTimeRange] = React.useState("90d");
+  const [isStatLoading, setIsStatLoading] = React.useState(true);
+
+
+  useEffect(() => {
+    const handleUserStats =  async () => {
+      const response = await userStats();
+      setStats(response as GameStats);
+      console.log(response);
+      setIsStatLoading(false);
+    } 
+    
+
+    handleUserStats()
+  }, [])
+  
   const rank = 1;
   const totalVisitors = React.useMemo(() => {
     return chartData.reduce((acc, curr) => acc + curr.played, 0);

@@ -1,6 +1,7 @@
 "use server";
 import { cookies } from "next/headers";
 import { HandleErrorResponse, handleResponse } from "./utils";
+import { Message } from "ai/react";
 
 const CACHE_DURATION = 60 * 60 * 24; // 24 hours
 const HISTORY_CACHE = new Map<
@@ -23,7 +24,7 @@ export interface GameSessionReadOnly {
   last_message?: string;
   history?: any[];
   model?: Model | null;
-  description? : string;
+  description?: string;
 }
 
 export type GameSessionReadOnlyResponse =
@@ -40,7 +41,7 @@ export interface GameSessionPublic {
   judge?: Judge | null;
   history?: any[];
   title?: string | null;
-  description? : string | null;
+  description?: string | null;
   create_time?: Date | null;
   completed_time?: Date | null;
   outcome?: "win" | "loss" | "forfeit" | null;
@@ -178,8 +179,7 @@ export async function createChat(
 export async function createTitle(
   session_id: string,
   user_id: string,
-  messageContent: string,
-  generate : boolean = true
+  generate: boolean = true
 ): Promise<MessageTypeResponse> {
   const cookieStore = await cookies();
   const authToken = cookieStore.get("sessionKey")?.value;
@@ -187,15 +187,6 @@ export async function createTitle(
   if (!authToken) {
     return { ok: false, error: "Token does not exist" };
   }
-
-  // Correcting the data structure
-  const dataToSend = {
-    message_content: messageContent,
-    generate
-    // Include other fields here if necessary based on the API's expected schema
-  };
-
-  // console.log("Sending data:", JSON.stringify(dataToSend));
 
   try {
     const response = await fetch(
@@ -206,7 +197,9 @@ export async function createTitle(
           Authorization: `Bearer ${authToken}`,
           "Content-Type": "application/json", // Ensure Content-Type is set to application/json
         },
-        body: JSON.stringify(dataToSend),
+        body: JSON.stringify({
+          generate,
+        }),
       }
     );
 
@@ -214,6 +207,7 @@ export async function createTitle(
     if (!response.ok) {
       return {
         ok: false,
+        status: response.status,
         error: `HTTP error! status: ${response.status}`,
       };
     }
@@ -230,54 +224,12 @@ export async function createTitle(
   }
 }
 
-
-// Forfeit Game
-export async function forfeitGame(
-  session_id: string,
-  user_id: string
-): Promise<MessageTypeResponse> {
-  const cookieStore = await cookies();
-  const authToken = cookieStore.get("sessionKey")?.value;
-
-  if (!authToken) {
-    return { ok: false, error: "Token does not exist" };
-  }
-
-  try {
-    const response = await fetch(
-      `${process.env.FRONTEND_HOST}/api/${session_id}/chat_conversation/${user_id}/forfeit`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
-
-    if (!response.ok || response.status === 204) {
-      return {
-        ok: false,
-        status: response.status,
-        message: `HTTP error! status: ${response.status}`,
-      };
-    }
-
-    const data = await handleResponse<MessageType>(response);
-    return {
-      ...data,
-      ok: true,
-    };
-  } catch (err) {
-    console.error("Error in forfeitGame:", err);
-    return { ok: false, error: "An unexpected error occurred" };
-  }
-}
-
 // End Game
-export async function endGame(
+export async function concludeSessionGame(
   session_id: string,
-  user_id: string
+  user_id: string,
+  outcome: "loss",
+  message: Message[]
 ): Promise<MessageTypeResponse> {
   const cookieStore = await cookies();
   const authToken = cookieStore.get("sessionKey")?.value;
@@ -287,14 +239,16 @@ export async function endGame(
   }
 
   try {
+    // fetch game response
     const response = await fetch(
-      `${process.env.FRONTEND_HOST}/api/${session_id}/chat_conversation/${user_id}/end_game`,
+      `${process.env.FRONTEND_HOST}/api/${session_id}/chat_conversation/${user_id}/conclude?outcome=${outcome}`,
       {
         method: "POST",
         headers: {
           Authorization: `Bearer ${authToken}`,
           "Content-Type": "application/json",
         },
+        body: JSON.stringify(message),
       }
     );
 
@@ -304,13 +258,12 @@ export async function endGame(
       ok: true,
     };
   } catch (err) {
-    console.error("Error in endGame:", err);
     return { ok: false, error: "An unexpected error occurred" };
   }
 }
 
 // Get History
-export async function getHistory(
+export async function getRecents(
   skip: number,
   limit?: number
 ): Promise<GameSessionRecentItemResponse> {
@@ -342,7 +295,7 @@ export async function getHistory(
 
     return data;
   } catch (err) {
-    console.error("Error in getHistory:", err);
+    console.error("Error in getRecents:", err);
     return { ok: false, error: "An unexpected error occurred" };
   }
 }
@@ -366,9 +319,6 @@ export async function getSessionHistory(
       headers: {
         Authorization: `Bearer ${authToken}`,
         "Content-Type": "application/json",
-      },
-      next: {
-        revalidate: CACHE_DURATION, // Next.js 13+ cache configuration
       },
     });
 
@@ -467,7 +417,8 @@ export async function postSharedSession(
 }
 
 export async function deleteSession(
-  session_id: string,
+  user_id: string,
+  session_ids: string[]
 ): Promise<MessageTypeResponse> {
   const cookieStore = await cookies();
   const authToken = cookieStore.get("sessionKey")?.value;
@@ -476,7 +427,7 @@ export async function deleteSession(
     return { ok: false, status: 401, error: "Token does not exist" };
   }
 
-  const uri = `${process.env.FRONTEND_HOST}/api/${session_id}/chat_conversation`;
+  const uri = `${process.env.FRONTEND_HOST}/api/${user_id}/chat_conversation`;
   try {
     const response = await fetch(uri, {
       method: "DELETE",
@@ -484,6 +435,7 @@ export async function deleteSession(
         Authorization: `Bearer ${authToken}`,
         "Content-Type": "application/json",
       },
+      body: JSON.stringify(session_ids),
     });
 
     if (!response.ok) {
@@ -504,4 +456,3 @@ export async function deleteSession(
     return { ok: false, error: "An unexpected error occurred" };
   }
 }
-

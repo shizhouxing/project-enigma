@@ -1,4 +1,5 @@
 "use server";
+
 import { ChatComponent } from "@/components/chat";
 import AuthMonitor from "@/hooks/useCookieCheck";
 import {
@@ -10,6 +11,7 @@ import { cookies } from "next/headers";
 import { Suspense } from "react";
 import Loading from "@/components/loading";
 import { Metadata } from "next";
+import { redirect } from "next/navigation";
 
 interface ChatPageProps {
   params: Promise<{
@@ -17,11 +19,14 @@ interface ChatPageProps {
   }>;
 }
 
-export async function generateMetadata({ params }: ChatPageProps): Promise<Metadata> {
+
+export async function generateMetadata({
+  params,
+}: ChatPageProps): Promise<Metadata> {
   const { id } = await params;
 
   try {
-    const session = await getSession(id) as GameSessionPublicResponse;
+    const session = (await getSession(id)) as GameSessionPublicResponse;
 
     if (!session.ok) {
       return {
@@ -33,7 +38,9 @@ export async function generateMetadata({ params }: ChatPageProps): Promise<Metad
     const description = `Game session: ${title}`;
 
     return {
-      metadataBase: new URL("https://project-enigma-620119407459.us-central1.run.app/"),
+      metadataBase: new URL(
+        "https://project-enigma-620119407459.us-central1.run.app/"
+      ),
       title,
       description,
       openGraph: {
@@ -102,20 +109,20 @@ export default async function Page({ params }: ChatPageProps) {
   const authorization = (await cookeStore).get("sessionKey")?.value;
 
   return (
-    <Suspense
-      fallback={
-        <Loading
-          fullScreen
-          className="flex items-center justify-center w-full h-screen text-center relative"
-        />
-      }
-    >
-      <AuthMonitor>
+    <AuthMonitor>
+      <Suspense
+        fallback={
+          <Loading
+            fullScreen
+            className="flex items-center justify-center w-full h-screen text-center relative"
+          />
+        }
+      >
         <ChatComponent
           session={session as GameSessionPublic}
           authorization={authorization}
         />
-      </AuthMonitor>
-    </Suspense>
+      </Suspense>
+    </AuthMonitor>
   );
 }
