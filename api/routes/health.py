@@ -9,8 +9,10 @@ from datetime import datetime, UTC
 from fastapi import APIRouter, HTTPException, status, Request
 
 from api.core.config import settings
+from api.backend_ping_test import db_ping_server
 
 async def check_model_service(url : str, model_endpoint: str) -> Dict[str, str]:
+    """ helper function that pings public services """
     try:
         
         endpoint = parse.urljoin(url, model_endpoint)
@@ -24,14 +26,13 @@ async def check_model_service(url : str, model_endpoint: str) -> Dict[str, str]:
                     "latency": f"{(end_time - start_time):.2f}s"
                 }
     except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-from api.backend_ping_test import db_ping_server
+        return {"endpoint" : endpoint, "status": "error", "message": str(e)}
 
 router = APIRouter()
 
 @router.get("/health/")
 async def health_check(request : Request) -> Dict[str, Any]:
+    """ check the health of mongodb latency and ping public routes """
     start_time = datetime.now(UTC)
     base_url = str(request.base_url)
     # Run all health checks concurrently
