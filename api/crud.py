@@ -433,6 +433,7 @@ async def create_game_session(*,
             metadata=game.metadata.model_dump(exclude_none=True) | sample
         )
 
+        
         result = await db.sessions.insert_one(new_session\
                                               .create_session()) 
 
@@ -710,7 +711,8 @@ async def get_sessions_for_user(user_id: str | ObjectId, db: Database, skip : in
 
     query = db.sessions.find({
         "user_id": user_id,
-        "completed": True
+        "completed": True,
+        "visible" : True
     }).skip(skip=skip)
     
     if limit is not None:

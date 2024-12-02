@@ -24,16 +24,25 @@ async def history_garbage_collection():
         was afk
     """
     db = await get_database()
-    result : DeleteResult = await db.sessions.delete_many({
-        "completed": True,
+    result: DeleteResult = await db.sessions.delete_many({
         "$or": [
             {
-              "$expr": {
-                  "$lt": [{ "$size": "$history" }, 1],
-                },
+                # game session completed 
+                "completed": True, 
+                "visible": False
+            },
+            {
+                # game session is not visible
+                "visible": False
+            },
+            {
+                # quote on quote faild game sessions
+                "completed" : True,
+                "$expr": {
+                    "$lt": [{ "$size": "$history" }, 2]
+                }
             }
         ]
     })
-
     if result.deleted_count == 0:
         logger.info("Currently no empty sessions")
