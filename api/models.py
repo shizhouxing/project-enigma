@@ -268,7 +268,7 @@ class Game(BaseModelWithUtils):
     description: Optional[str] = None
     gameplay: Optional[str] = None
     objective: Optional[str] = None
-    image: Optional[HttpUrl] = None  # Removed Union with str for clearer validation
+    image: Optional[HttpUrl | str] = None  # Removed Union with str for clearer validation
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     session_description : Optional[str] = None
@@ -406,6 +406,7 @@ class GameSession(BaseModelWithUtils):
         new_session = self.model_dump()
         
         # delete unused params
+        del new_session["id"]
         del new_session["user"]
         del new_session["judge"]
         del new_session["model"]
@@ -640,14 +641,8 @@ class GameReadOnly(GameSessionHistoryItem):
 
 class GameSessionTitleRequest(BaseModelWithUtils):
     """Request model for updating game session title"""
-    message_content: Optional[str] = Field(..., min_length=1, max_length=200)
     generate : bool = True
-    
-    def generate_title(self) -> str:
-        """Generate a title from message content"""
-        # Simple implementation - you might want to enhance this
-        words = self.message_content.split()
-        return " ".join(words[:5]) + "..." if len(words) > 5 else self.message_content
+
 
 class StreamResponse(BaseModelWithUtils):
     event: Literal["message", "end", "error"]
