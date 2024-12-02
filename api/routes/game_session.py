@@ -316,9 +316,12 @@ async def completion(
                                  current_user=current_user, 
                                  db=db, 
                                  session=session,
-                                 background=background)
+                                 background=background),
     )
     response.headers['x-vercel-ai-data-stream'] = 'v1'
+    print(response.headers)
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['Transfer-Encoding'] = 'chunked'
     return response
 
 
