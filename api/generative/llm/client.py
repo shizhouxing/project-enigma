@@ -1,5 +1,4 @@
 import os
-from api.utils import logger
 from typing import Any, Dict, List
 from .types import CompletionResponse
 from .factory import CompletionFactory
@@ -40,7 +39,7 @@ CompletionFactory.register_strategy("anthropic", AnthropicCompletionStrategy)
 class Client:
     def __init__(
         self,
-        provider : str,
+        provider : str, 
         api_key: str = os.getenv("OPENAI_API_KEY", None),
         base_url: str = "https://api.openai.com/v1",
         **kwargs
@@ -52,14 +51,14 @@ class Client:
                 **kwargs
             )
             self._strategy = CompletionFactory\
-                .create_strategy("openai",
+                .create_strategy("openai", 
                                  self._client)
         if ANTHROPIC_MODULE_AVAILABLE and provider == "anthropic":
             self._client = Anthropic(api_key=api_key)
             self._strategy = CompletionFactory\
                 .create_strategy("anthropic",
                                  self._client)
-
+    
     def generate(
             self,
             messages: List[Dict[str, str]],
@@ -68,13 +67,12 @@ class Client:
             **kwargs
         ) -> CompletionResponse:
             """Generate a completion using the appropriate strategy"""
-            logger.info(f"LLM create_completion: messages {messages}")
             return self._strategy.create_completion(
                 messages=messages,
                 stream=stream,
                 model=model,
                 **kwargs
             )
-
+    
     def __call__(self, *args: Any, **kwargs: Any) -> CompletionResponse:
         return self.generate(*args, **kwargs)
