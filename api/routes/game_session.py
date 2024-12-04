@@ -14,7 +14,7 @@ from api.deps import Database, CurrentUser
 from api.models import (Request,
                         ClientMessage,
                         GameSessionCreateResponse,
-                        GameSessionPublic,  
+                        GameSessionPublic,
                         GameReadOnly,
                         GameSessionTitleRequest,
                         Message)
@@ -26,8 +26,8 @@ router = APIRouter()
 
 @router.post("/create-chat", tags=["Game Session"])
 async def create_session(
-    game_id: str, 
-    user: CurrentUser, 
+    game_id: str,
+    user: CurrentUser,
     db: Database
 ) -> GameSessionCreateResponse:
     """
@@ -37,7 +37,7 @@ async def create_session(
         game_id (str): ID of the game for the session
         current_user (CurrentUser): Currently authenticated user
         session: MongoDB session instance
-    
+
     Returns:
         GameSessionCreateResponse: Response model with session_id and target
     """
@@ -46,7 +46,7 @@ async def create_session(
 
         if not game:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, 
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail="No contexts found for the specified game"
             )
 
@@ -56,12 +56,12 @@ async def create_session(
             db=db,
             user_id=user.id,
             game_id=game_id,
-            model_id=model_id, 
+            model_id=model_id,
         )
     except Exception as e:
         logger.error(e)
         raise HTTPException( status_code=status.HTTP_400_BAD_REQUEST, detail="Something went wrong")
-        
+
 
     return GameSessionCreateResponse.from_game(new_session)
 
@@ -72,7 +72,7 @@ async def get_chat_session(
     user : CurrentUser,
     db : Database
 ) -> GameSessionPublic:
-    
+
     session = await crud.get_session(
         user_id=ObjectId(user.id),
         session_id=id,
@@ -86,7 +86,7 @@ async def get_chat_session(
 @router.delete("/{id}/chat_conversation", tags=["Game Session"])
 async def deleted_session(
     id : str,
-    user: CurrentUser, 
+    user: CurrentUser,
     db: Database
 ) -> Message:
     """NOTE: this is just for testing"""
@@ -94,7 +94,7 @@ async def deleted_session(
     try:
         response = await db.sessions.delete_one({
             "_id" : ObjectId(id),
-            "user_id" : user.id, 
+            "user_id" : user.id,
         })
 
         if response.deleted_count == 0:
@@ -102,7 +102,7 @@ async def deleted_session(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Session {id} not found"
             )
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=400,
@@ -140,7 +140,7 @@ async def title_completion(
             completed=None,
             db=db
         )
-        
+
         # and session.title is None
         if str(session.user_id) != str(current_user.id) != str(user_id):
             raise HTTPException(
@@ -152,17 +152,17 @@ async def title_completion(
             # Create minimal context for title generation with modified format
             title_prompt = [
                 {
-                    "role": "system", 
+                    "role": "system",
                     "content": "Analyze the input message and generate a concise, engaging, and relevant title that captures the essence of the content or theme. Ensure the title is clear and compelling for its intended audience and in xml starting with <3c7469746c653e> end with</3c7469746c653e>."
                 },
                 {
-                    "role": "user", 
+                    "role": "user",
                     "content": content.message_content
                 }
             ]
 
             client = Models.get_client(session.model.name)
-            
+
             # Generate title with max_tokens limit
             title_response = client.generate(
                 title_prompt,
@@ -170,31 +170,31 @@ async def title_completion(
                 stream=False,
                 max_tokens=100  # Increased slightly to accommodate format
             )
-            
+
             response = title_response.get_text().strip()
 
             title = re.sub('</?3c7469746c653e>', '', response)
         else:
             title = content.message_content
-        
+
         # Update title in database
         result = await db.sessions.update_one(
             {"_id": session.id},
             {"$set": {"title": title}}
         )
-        
+
         if result.modified_count == 0:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Session not found or no changes made"
             )
-            
+
         return Message(
             status=status.HTTP_200_OK,
             message="Title completion was successful.",
             data={"title": title}
         )
-        
+
     except Exception as e:
         print(e)
         raise HTTPException(
@@ -218,7 +218,7 @@ def model_generate_generator(
             detail="You do not have permission to access this session"
         )
 
-    # NOTE: where assuming the user does not have access 
+    # NOTE: where assuming the user does not have access
     session.history = history
     model = session.model.name
     metadata = session.metadata
@@ -229,14 +229,20 @@ def model_generate_generator(
     updates = {"history"}
     calmative_token = ""
 
-    if tool_enabled := metadata.model_config.get("models_config", {}).get("tools_config", {}).get("enabled", False):
-        stream = client.generate(session.history, model, tools=metadata.models_config.tools_config.tools)
+    tools_config = metadata.models_config.get("tools_config", {})
+    system_prompt = metadata.models_config.get("system_prompt", "")
+    history = session.history
+    if system_prompt:
+        history = [{"role": "system", "content": system_prompt}] + history
+
+    if tool_enabled := tools_config.get("enabled", False):
+        stream = client.generate(history, model, tools=tools_config.get("tools", []))
     else:
-        stream = client.generate(session.history, model)
+        stream = client.generate(history, model)
 
     for token in stream.iter_tokens():
         calmative_token += token
-        
+
         if not tool_enabled and not session.outcome and validator(**{"source" : calmative_token} | metadata.kwargs):
             session.outcome = "win"
             session.completed = True
@@ -249,11 +255,12 @@ def model_generate_generator(
 
 
     functions_called = stream.get_function_call()
+    logger.info(f"Functions called: {functions_called}")
     if functions_called and any(
         validator(
             **{"source": calmative_token} |
-            metadata.get("kwargs", {}) |
-            {"function_call_name": func.name, "function_call_arguments": func.argument}
+            metadata.kwargs |
+            {"function_call_name": func["name"], "function_call_arguments": func["arguments"]}
         ) for func in functions_called
     ):
         session.outcome = "win"
@@ -266,7 +273,7 @@ def model_generate_generator(
         )
 
     session.history.append({"role": "assistant", "content": calmative_token })
-    background.add_task(crud.update_game_session, 
+    background.add_task(crud.update_game_session,
         session_id=id,
         updated_session=session,
         db=db,
@@ -302,13 +309,13 @@ async def completion(
         completed=False,
         db=db
     )
-    
+
     response = StreamingResponse(
-        model_generate_generator(history=request.encode, 
-                                 id=id, 
-                                 user_id=user_id, 
-                                 current_user=current_user, 
-                                 db=db, 
+        model_generate_generator(history=request.encode,
+                                 id=id,
+                                 user_id=user_id,
+                                 current_user=current_user,
+                                 db=db,
                                  session=session,
                                  background=background)
     )
@@ -319,9 +326,9 @@ async def completion(
 
 @router.post("/{id}/chat_conversation/{user_id}/forfeit", tags=["Game Session"])
 async def forfeit(
-    current_user: CurrentUser, 
+    current_user: CurrentUser,
     db: Database,
-    id: str, 
+    id: str,
     user_id : str,
 ) -> Message:
     """
@@ -334,23 +341,23 @@ async def forfeit(
         dict: response containing outcome {"outcome": "forfeit"}
     """
 
-    session = await crud.get_session(session_id=id, 
-                                     user_id=ObjectId(user_id), 
+    session = await crud.get_session(session_id=id,
+                                     user_id=ObjectId(user_id),
                                      db=db)
-    
+
     if user_id != str(session.user_id) != str(current_user.id) \
        or session.completed:
         raise HTTPException(
             status_code = status.HTTP_403_FORBIDDEN,
             detail = "You do not have permission to access this session"
         )
-    
+
     session.completed = True
     session.outcome = "forfeit"
     session.completed_time = datetime.now(UTC)
 
     await crud.update_game_session(db=db,
-                                   session_id=id, 
+                                   session_id=id,
                                    updated_session=session,
                                    updates=[
                                        "completed",
@@ -365,9 +372,9 @@ async def forfeit(
 
 @router.post("/{id}/chat_conversation/{user_id}/end_game", tags=["Game Session"])
 async def end(
-    id: str, 
+    id: str,
     user_id : str,
-    current_user: CurrentUser, 
+    current_user: CurrentUser,
     db: Database
 ) -> Message:
     """
@@ -383,22 +390,22 @@ async def end(
     session = await crud.get_session(session_id=id,
                                      user_id=ObjectId(user_id),
                                      db=db)
-    
+
 
     if user_id != str(session.user_id) != str(current_user.id):
         raise HTTPException(
             status_code = status.HTTP_403_FORBIDDEN,
             detail = "You do not have permission to access this session"
         )
-    
+
     session.completed = True
     session.outcome = "loss"
     session.completed_time = datetime.now(UTC)
 
     try:
 
-        await crud.update_game_session(session_id=id, 
-                                       db=db, 
+        await crud.update_game_session(session_id=id,
+                                       db=db,
                                        updated_session=session,
                                        updates=[
                                             "completed",
@@ -447,7 +454,7 @@ async def get_history(
     except Exception as e:
         # Raise an error if something goes wrong
         raise e
-    
+
     # Return the session history as a JSON response
     return session_history
 
@@ -475,9 +482,9 @@ async def get_shared_conversation(
             status_code = status.HTTP_403_FORBIDDEN,
             detail = "You do not have permission to access this session"
         )
-    
+
     duration = (session.completed_time - session.create_time).total_seconds()
-    
+
 
     response_data = GameReadOnly(
         username=session.user.username,
@@ -488,7 +495,7 @@ async def get_shared_conversation(
         last_message=session.completed_time,
         history=session.history,
         model=session.model
-        
+
     )
 
     return response_data
@@ -522,20 +529,20 @@ async def post_shared_conversation(
                                      user_id=user.id,
                                      completed=True,
                                      db=db)
-    
+
     if not session.completed:
         raise HTTPException(
             status_code = status.HTTP_403_FORBIDDEN,
             detail = "You do not have permission to access this session"
         )
-    
+
 
     session_id = ObjectId()
     result = await db.sessions.update_one(
             {"_id": session.id},
             {"$set": {"shared": session_id}}
         )
-        
+
     if result.modified_count == 0:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -567,19 +574,19 @@ async def get_session_history(
     """
 
 
-    session = await crud.get_session(session_id=id, 
+    session = await crud.get_session(session_id=id,
                                      user_id=ObjectId(user_id),
                                      completed=True,
                                      db=db)
-    
+
     if not session.completed:
         raise HTTPException(
             status_code = status.HTTP_403_FORBIDDEN,
             detail = "You do not have permission to access this session"
         )
-    
+
     duration = (session.completed_time - session.create_time).total_seconds()
-    
+
     response_data = GameReadOnly(
         session_id=str(session.id),
         title=session.title,
