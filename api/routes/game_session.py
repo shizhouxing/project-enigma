@@ -229,10 +229,16 @@ def model_generate_generator(
     updates = {"history"}
     calmative_token = ""
 
-    if tool_enabled := metadata.model_config.get("models_config", {}).get("tools_config", {}).get("enabled", False):
-        stream = client.generate(session.history, model, tools=metadata.models_config.tools_config.tools)
+    tools_config = metadata.models_config.get("tools_config", {})
+    system_prompt = metadata.models_config.get("system_prompt", "")
+    history = session.history
+    if system_prompt:
+        history = [{"role": "system", "content": system_prompt}] + history
+
+    if tool_enabled := tools_config.get("enabled", False):
+        stream = client.generate(history, model, tools=tools_config.get("tools", []))
     else:
-        stream = client.generate(session.history, model)
+        stream = client.generate(history, model)
 
     for token in stream.iter_tokens():
         calmative_token += token
@@ -249,11 +255,12 @@ def model_generate_generator(
 
 
     functions_called = stream.get_function_call()
+    logger.info(f"Functions called: {functions_called}")
     if functions_called and any(
         validator(
             **{"source": calmative_token} |
-            metadata.get("kwargs", {}) |
-            {"function_call_name": func.name, "function_call_arguments": func.argument}
+            metadata.kwargs |
+            {"function_call_name": func["name"], "function_call_arguments": func["arguments"]}
         ) for func in functions_called
     ):
         session.outcome = "win"
