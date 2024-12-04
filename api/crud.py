@@ -385,12 +385,6 @@ async def create_game_session(*,
         else:
             description = f"{game["session_description"]}"
 
-        metadata = game["metadata"]
-        if "kwargs" in sample:
-            metadata["kwargs"] = sample["kwargs"]
-        if "model_config" in sample:
-            metadata["model_config"] |= sample["model_config"]
-
         new_session = GameSession(
             user_id=user_id,
             game_id=game_id,
@@ -403,9 +397,10 @@ async def create_game_session(*,
             completed_time=None,
             outcome=None,
             shared=None,
-            metadata=metadata,
+            metadata=game["metadata"] | sample
         ).model_dump()
 
+        
 
         del new_session["id"]
         del new_session["user"]
